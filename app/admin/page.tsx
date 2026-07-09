@@ -130,7 +130,7 @@ export default function AdminDashboardPage() {
                     <span className="font-bold text-xs text-slate-900">{alt.userHash}</span>
                     <span className="text-xs text-slate-400">({alt.timestamp})</span>
                   </div>
-                  <p className="text-xs text-rose-900 font-medium">Triggered: "{alt.triggerWord}"</p>
+                  <p className="text-xs text-rose-900 font-medium">Triggered: &quot;{alt.triggerWord}&quot;</p>
                 </div>
                 <span className="text-xs font-bold text-emerald-700 bg-emerald-100/80 px-3 py-1 rounded-xl border border-emerald-300">
                   {alt.status}

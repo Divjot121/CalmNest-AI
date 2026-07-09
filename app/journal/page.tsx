@@ -39,21 +39,28 @@ export default function JournalPage() {
   const [customTags, setCustomTags] = useState<string[]>(['Mindfulness']);
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    if (user?.id) {
-      loadEntries();
-    } else if (!authLoading) {
-      setIsLoading(false);
-    }
-  }, [user, authLoading]);
-
-  const loadEntries = async () => {
+  const loadEntries = React.useCallback(async () => {
     if (!user?.id) return;
     setIsLoading(true);
     const data = await getJournalEntries(user.id);
     setEntries(data);
     setIsLoading(false);
-  };
+  }, [user]);
+
+  useEffect(() => {
+    let active = true;
+    if (user?.id) {
+      const timer = setTimeout(() => {
+        if (active) loadEntries();
+      }, 0);
+      return () => { active = false; clearTimeout(timer); };
+    } else if (!authLoading) {
+      const timer = setTimeout(() => {
+        if (active) setIsLoading(false);
+      }, 0);
+      return () => { active = false; clearTimeout(timer); };
+    }
+  }, [user, authLoading, loadEntries]);
 
   const handleAddCustomTag = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && customTagInput.trim()) {

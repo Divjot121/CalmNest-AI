@@ -243,9 +243,9 @@ export default function DashboardPage() {
                     </span>
                     <div>
                       <h4 className="font-bold text-sm text-slate-900">
-                        Today's Mood: {moodOptions.find((o) => o.score === todayMood.moodScore)?.label} ({todayMood.moodScore}/5)
+                        Today&apos;s Mood: {moodOptions.find((o) => o.score === todayMood.moodScore)?.label} ({todayMood.moodScore}/5)
                       </h4>
-                      {todayMood.notes && <p className="text-xs text-slate-600 mt-0.5 italic">"{todayMood.notes}"</p>}
+                      {todayMood.notes && <p className="text-xs text-slate-600 mt-0.5 italic">&quot;{todayMood.notes}&quot;</p>}
                     </div>
                   </div>
                   <button

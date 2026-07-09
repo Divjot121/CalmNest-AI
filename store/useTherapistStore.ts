@@ -58,7 +58,13 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
   fetchConversations: async () => {
     try {
       set({ isLoadingConversations: true });
-      const user = useAuthStore.getState().user;
+      let user = useAuthStore.getState().user;
+      if (!user?.id) {
+        user = await useAuthStore.getState().checkAuth();
+      }
+      if (!user?.id) {
+        user = (await useAuthStore.getState().loginAnonymously())?.success ? useAuthStore.getState().user : null;
+      }
       if (!user?.id) {
         set({ isLoadingConversations: false });
         return;

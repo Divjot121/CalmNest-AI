@@ -100,7 +100,14 @@ export default function AssessmentsPage() {
     }
     setIsSaving(true);
     const total = calculateScore();
-    await saveAssessmentScore(user.id, activeType, total, { answers });
+    const info = getInterpretation(total, activeType);
+    await saveAssessmentScore(user.id, {
+      type: activeType,
+      score: total,
+      severity: info.level,
+      answers,
+      recommendations: [info.advice],
+    });
     setIsSaving(false);
     setIsCompleted(true);
   };

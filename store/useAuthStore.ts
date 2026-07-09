@@ -46,7 +46,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: true });
       const unsub = onAuthStateChanged(auth, async (u) => {
         if (u) {
-          let profile = await getUserProfile(u.uid);
+          let profile = null;
+          try {
+            profile = await getUserProfile(u.uid);
+          } catch (e) {}
           if (!profile) {
             profile = {
               uid: u.uid,
@@ -56,12 +59,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               streak: 1,
               bestStreak: 1,
             };
-            await createOrUpdateUserProfile(u.uid, profile);
+            try {
+              await createOrUpdateUserProfile(u.uid, profile);
+            } catch (e) {}
           }
           const userObj: User = {
             id: u.uid,
             email: profile.email || u.email || '',
-            name: profile.name || u.displayName || 'CalmNest User',
+            name: profile.name || u.displayName || 'Anonymous Guest',
             role: profile.role || 'USER',
             avatarUrl: profile.avatarUrl || u.photoURL,
             streak: profile.streak || 1,
@@ -71,40 +76,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           set({ user: userObj, firebaseUser: u, isLoading: false });
           resolve(userObj);
         } else {
-          // If no user, default to anonymous auth or null if on auth pages
-          if (typeof window !== 'undefined' && (window.location.pathname.startsWith('/auth') || window.location.pathname === '/')) {
-            set({ user: null, firebaseUser: null, isLoading: false });
-            resolve(null);
-          } else {
+          // Auto sign-in anonymously so zero login is required for chat
+          try {
+            const cred = await signInAnonymously(auth);
+            let profile = null;
             try {
-              const cred = await signInAnonymously(auth);
-              let profile = await getUserProfile(cred.user.uid);
-              if (!profile) {
-                profile = {
-                  uid: cred.user.uid,
-                  email: `anon_${cred.user.uid.slice(0, 6)}@calmnest.org`,
-                  name: 'Anonymous Guest',
-                  role: 'USER',
-                  streak: 1,
-                  bestStreak: 1,
-                };
-                await createOrUpdateUserProfile(cred.user.uid, profile);
-              }
-              const userObj: User = {
-                id: cred.user.uid,
-                email: profile.email,
-                name: profile.name,
-                role: profile.role,
-                streak: profile.streak,
-                bestStreak: profile.bestStreak,
-                isAnonymous: true,
+              profile = await getUserProfile(cred.user.uid);
+            } catch (e) {}
+            if (!profile) {
+              profile = {
+                uid: cred.user.uid,
+                email: `anon_${cred.user.uid.slice(0, 6)}@calmnest.org`,
+                name: 'Anonymous Guest',
+                role: 'USER',
+                streak: 1,
+                bestStreak: 1,
               };
-              set({ user: userObj, firebaseUser: cred.user, isLoading: false });
-              resolve(userObj);
-            } catch (err) {
-              set({ user: null, firebaseUser: null, isLoading: false });
-              resolve(null);
+              try {
+                await createOrUpdateUserProfile(cred.user.uid, profile);
+              } catch (e) {}
             }
+            const userObj: User = {
+              id: cred.user.uid,
+              email: profile?.email || `anon_${cred.user.uid.slice(0, 6)}@calmnest.org`,
+              name: profile?.name || 'Anonymous Guest',
+              role: profile?.role || 'USER',
+              streak: profile?.streak || 1,
+              bestStreak: profile?.bestStreak || 1,
+              isAnonymous: true,
+            };
+            set({ user: userObj, firebaseUser: cred.user, isLoading: false });
+            resolve(userObj);
+          } catch (err) {
+            // Fallback anonymous memory user if offline
+            const tempId = `anon_${Math.random().toString(36).substring(2, 10)}`;
+            const fallbackUser: User = {
+              id: tempId,
+              email: `${tempId}@calmnest.org`,
+              name: 'Anonymous Guest',
+              role: 'USER',
+              streak: 1,
+              bestStreak: 1,
+              isAnonymous: true,
+            };
+            set({ user: fallbackUser, firebaseUser: null, isLoading: false });
+            resolve(fallbackUser);
           }
         }
       });

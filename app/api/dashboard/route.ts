@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
       : null;
 
     // Generate dynamic summary
-    let aiSummary = `Welcome back, ${user.name}! You are on a ${user.streak}-day check-in streak. Remember that small daily mindful steps build lasting mental resilience.`;
+    let aiSummary = `Welcome back, ${user.name}! You are on a ${(user as any).streak || 1}-day check-in streak. Remember that small daily mindful steps build lasting mental resilience.`;
     if (formattedTodayMood) {
       if (formattedTodayMood.moodScore >= 4) {
         aiSummary = `You're reporting a positive mood today (${formattedTodayMood.moodScore}/5)! Your tags indicate good momentum. Take a moment to notice what contributed to this feeling.`;

@@ -276,6 +276,24 @@ export async function saveAssessmentResult(userId: string, data: { type: Assessm
   return docRef.id;
 }
 
+export async function saveAssessmentScore(
+  userId: string,
+  dataOrType: any,
+  score?: number,
+  extra?: any
+): Promise<string> {
+  if (typeof dataOrType === 'string') {
+    return saveAssessmentResult(userId, {
+      type: dataOrType as AssessmentData['type'],
+      score: score || 0,
+      severity: extra?.severity || 'Assessed',
+      answers: extra?.answers || [],
+      recommendations: extra?.recommendations || []
+    });
+  }
+  return saveAssessmentResult(userId, dataOrType);
+}
+
 export async function getAssessments(userId: string): Promise<AssessmentData[]> {
   try {
     const q = query(

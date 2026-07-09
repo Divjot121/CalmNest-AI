@@ -298,7 +298,7 @@ export default function MoodTrackerPage() {
                               </span>
                             ))}
                           </div>
-                          {log.notes && <p className="text-[11px] text-slate-600 mt-1 italic">"{log.notes}"</p>}
+                          {log.notes && <p className="text-[11px] text-slate-600 mt-1 italic">&quot;{log.notes}&quot;</p>}
                         </div>
                       </div>
                       <span className="text-[10px] text-slate-400 font-semibold shrink-0">
