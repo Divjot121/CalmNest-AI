@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     } else {
       const ai = getGemini();
       const chat = ai.chats.create({ 
-        model: "gemini-3.1-flash-lite",
+        model: "gemini-2.5-flash",
         config: {
           systemInstruction: SYSTEM_PROMPT
         },
