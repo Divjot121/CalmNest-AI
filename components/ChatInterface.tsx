@@ -99,22 +99,54 @@ export default function ChatInterface() {
   useEffect(() => {
     if (!chatId) return;
 
-    const q = query(
-      collection(db, 'chats', chatId, 'messages'),
-      orderBy('createdAt', 'asc'),
-      limit(50)
-    );
+    const queriesRef = collection(db, 'chats', chatId, 'queries');
+    const responsesRef = collection(db, 'chats', chatId, 'responses');
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Message[];
-      setMessages(msgs);
+    let currentQueries: any[] = [];
+    let currentResponses: any[] = [];
+
+    const getTime = (val: any) => {
+      if (!val) return Date.now();
+      if (val.toDate) return val.toDate().getTime();
+      if (val.seconds) return val.seconds * 1000;
+      return new Date(val).getTime() || Date.now();
+    };
+
+    const updateCombined = () => {
+      const merged = [
+        ...currentQueries.map(q => ({
+          id: q.id,
+          text: q.text,
+          senderType: 'user' as const,
+          createdAt: q.createdAt
+        })),
+        ...currentResponses.map(r => ({
+          id: r.id,
+          text: r.text,
+          senderType: 'ai' as const,
+          createdAt: r.createdAt
+        }))
+      ];
+      
+      merged.sort((a, b) => getTime(a.createdAt) - getTime(b.createdAt));
+      setMessages(merged);
       scrollToBottom();
+    };
+
+    const unsubQueries = onSnapshot(query(queriesRef, orderBy('createdAt', 'asc'), limit(50)), (snapshot) => {
+      currentQueries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      updateCombined();
     });
 
-    return unsub;
+    const unsubResponses = onSnapshot(query(responsesRef, orderBy('createdAt', 'asc'), limit(50)), (snapshot) => {
+      currentResponses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      updateCombined();
+    });
+
+    return () => {
+      unsubQueries();
+      unsubResponses();
+    };
   }, [chatId]);
 
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -126,7 +158,7 @@ export default function ChatInterface() {
     setIsLoading(true);
 
     try {
-      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+      const queryDoc = await addDoc(collection(db, 'chats', chatId, 'queries'), {
         text,
         senderId: user.uid,
         anonymousUserId: user.uid,
@@ -157,17 +189,18 @@ export default function ChatInterface() {
         await updateDoc(doc(db, 'chats', chatId), { crisisDetected: true });
       }
 
-      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+      await addDoc(collection(db, 'chats', chatId, 'responses'), {
         text: data.text,
         senderId: 'ai',
         anonymousUserId: user.uid,
         senderType: 'ai',
+        queryId: queryDoc.id,
+        queryText: text,
         createdAt: serverTimestamp()
       });
 
     } catch (err: any) {
       console.error("Chat error:", err);
-      // Add a system message for error
       setMessages(prev => [...prev, {
         id: 'error-' + Date.now(),
         text: "I'm having a little trouble connecting right now. Please try again in a moment.",
@@ -190,7 +223,7 @@ export default function ChatInterface() {
       });
       setShowMoodPicker(false);
       
-      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+      await addDoc(collection(db, 'chats', chatId, 'queries'), {
         text: `I'm feeling a ${mood}/5 today.`,
         senderId: user.uid,
         senderType: 'user',

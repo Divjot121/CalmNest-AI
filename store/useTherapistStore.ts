@@ -110,24 +110,39 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
         set({ crisisDetected: chatDoc.data()?.crisisDetected || false });
       }
 
-      const q = query(
-        collection(db, 'chats', id, 'messages'),
-        orderBy('createdAt', 'asc'),
-        limit(100)
-      );
-      const snap = await getDocs(q);
-      const messages: ChatMessage[] = snap.docs.map(d => {
+      const queriesRef = collection(db, 'chats', id, 'queries');
+      const responsesRef = collection(db, 'chats', id, 'responses');
+      
+      const [queriesSnap, responsesSnap] = await Promise.all([
+        getDocs(query(queriesRef, orderBy('createdAt', 'asc'), limit(50))),
+        getDocs(query(responsesRef, orderBy('createdAt', 'asc'), limit(50)))
+      ]);
+
+      const queries = queriesSnap.docs.map(d => {
         const data = d.data();
         return {
           id: d.id,
-          role: data.senderType === 'user' || data.role === 'user' ? 'user' : 'assistant',
+          role: 'user' as const,
           content: data.text || data.content || '',
-          sentiment: data.sentiment || null,
           createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()
         };
       });
 
-      set({ messages, isLoadingMessages: false });
+      const responses = responsesSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          role: 'assistant' as const,
+          content: data.text || data.content || '',
+          createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()
+        };
+      });
+
+      const combined = [...queries, ...responses].sort((a, b) => {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+
+      set({ messages: combined, isLoadingMessages: false });
     } catch (error) {
       set({ isLoadingMessages: false });
     }
@@ -146,9 +161,9 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
         crisisDetected: false
       });
 
-      // Add welcome message
-      await addDoc(collection(db, 'chats', chatRef.id, 'messages'), {
-        text: `Hello ${user.name || 'friend'}! I am CalmNest AI, your safe space for support, reflection, and mindfulness. How are you feeling today?`,
+      // Add welcome message to responses
+      await addDoc(collection(db, 'chats', chatRef.id, 'responses'), {
+        text: `Hello ${user.name || 'friend'}! I am CalmNest, your safe space for support, reflection, and mindfulness. How are you feeling today?`,
         senderId: 'ai',
         senderType: 'ai',
         role: 'assistant',
@@ -229,8 +244,8 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
     }));
 
     try {
-      // Save user message to Firestore
-      await addDoc(collection(db, 'chats', convId, 'messages'), {
+      // Save user query to queries subcollection
+      const queryDoc = await addDoc(collection(db, 'chats', convId, 'queries'), {
         text,
         content: text,
         senderId: user.id,
@@ -261,13 +276,15 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
         crisis = data.crisisDetected || false;
       }
 
-      // Save AI message to Firestore
-      const aiDoc = await addDoc(collection(db, 'chats', convId, 'messages'), {
+      // Save AI response to responses subcollection, referencing the user query ID
+      const aiDoc = await addDoc(collection(db, 'chats', convId, 'responses'), {
         text: aiResponseText,
         content: aiResponseText,
         senderId: 'ai',
         senderType: 'ai',
         role: 'assistant',
+        queryId: queryDoc.id,
+        queryText: text,
         createdAt: serverTimestamp()
       });
 
