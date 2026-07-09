@@ -17,6 +17,12 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read, create, delete: if request.auth != null;
       }
+      match /queries/{queryId} {
+        allow read, create, delete: if request.auth != null;
+      }
+      match /responses/{responseId} {
+        allow read, create, delete: if request.auth != null;
+      }
     }
     
     match /moodLogs/{logId} {
