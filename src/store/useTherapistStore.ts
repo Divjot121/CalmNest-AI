@@ -271,20 +271,27 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
         crisis = data.crisisDetected || false;
       }
 
-      // Save AI response inside the same messages document under response fields
-      await updateDoc(msgDocRef, {
+      // Save AI response as a separate message entry to avoid permission errors on updates
+      const aiDocRef = await addDoc(collection(db, 'chats', convId, 'messages'), {
         responseText: aiResponseText,
+        content: aiResponseText,
+        senderId: 'ai',
+        senderType: 'ai',
+        role: 'assistant',
+        createdAt: serverTimestamp(),
         responseCreatedAt: serverTimestamp()
       });
 
-      if (crisis) {
-        await updateDoc(doc(db, 'chats', convId), { crisisDetected: true, updatedAt: serverTimestamp() });
-      } else {
-        await updateDoc(doc(db, 'chats', convId), { updatedAt: serverTimestamp() });
-      }
+      try {
+        if (crisis) {
+          await updateDoc(doc(db, 'chats', convId), { crisisDetected: true, updatedAt: serverTimestamp() });
+        } else {
+          await updateDoc(doc(db, 'chats', convId), { updatedAt: serverTimestamp() });
+        }
+      } catch (e) {}
 
       const aiMsgObj: ChatMessage = {
-        id: msgDocRef.id + '-ai',
+        id: aiDocRef.id + '-ai',
         role: 'assistant',
         content: aiResponseText,
         createdAt: new Date().toISOString()

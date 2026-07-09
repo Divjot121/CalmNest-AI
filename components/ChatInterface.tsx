@@ -133,6 +133,8 @@ export default function ChatInterface() {
 
       setMessages(flatMsgs);
       scrollToBottom();
+    }, (error) => {
+      console.warn("Firestore snapshot notice:", error.message);
     });
 
     return unsub;
@@ -147,7 +149,7 @@ export default function ChatInterface() {
     setIsLoading(true);
 
     try {
-      const msgDocRef = await addDoc(collection(db, 'chats', chatId, 'messages'), {
+      await addDoc(collection(db, 'chats', chatId, 'messages'), {
         text,
         senderId: user.uid,
         anonymousUserId: user.uid,
@@ -175,11 +177,16 @@ export default function ChatInterface() {
       
       if (data.crisisDetected) {
         setCrisisDetected(true);
-        await updateDoc(doc(db, 'chats', chatId), { crisisDetected: true });
+        try {
+          await updateDoc(doc(db, 'chats', chatId), { crisisDetected: true });
+        } catch (e) {}
       }
 
-      await updateDoc(msgDocRef, {
+      await addDoc(collection(db, 'chats', chatId, 'messages'), {
         responseText: data.text,
+        senderId: 'ai',
+        senderType: 'ai',
+        createdAt: serverTimestamp(),
         responseCreatedAt: serverTimestamp()
       });
 
