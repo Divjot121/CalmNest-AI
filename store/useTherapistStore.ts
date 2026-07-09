@@ -110,39 +110,34 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
         set({ crisisDetected: chatDoc.data()?.crisisDetected || false });
       }
 
-      const queriesRef = collection(db, 'chats', id, 'queries');
-      const responsesRef = collection(db, 'chats', id, 'responses');
-      
-      const [queriesSnap, responsesSnap] = await Promise.all([
-        getDocs(query(queriesRef, orderBy('createdAt', 'asc'), limit(50))),
-        getDocs(query(responsesRef, orderBy('createdAt', 'asc'), limit(50)))
-      ]);
-
-      const queries = queriesSnap.docs.map(d => {
+      const q = query(
+        collection(db, 'chats', id, 'messages'),
+        orderBy('createdAt', 'asc'),
+        limit(100)
+      );
+      const snap = await getDocs(q);
+      const flatMsgs: ChatMessage[] = [];
+      snap.docs.forEach(d => {
         const data = d.data();
-        return {
-          id: d.id,
-          role: 'user' as const,
-          content: data.text || data.content || '',
-          createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()
-        };
+        if (data.text) {
+          flatMsgs.push({
+            id: d.id + '-user',
+            role: 'user',
+            content: data.text,
+            createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()
+          });
+        }
+        if (data.responseText) {
+          flatMsgs.push({
+            id: d.id + '-ai',
+            role: 'assistant',
+            content: data.responseText,
+            createdAt: data.responseCreatedAt?.toDate?.()?.toISOString() || data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()
+          });
+        }
       });
 
-      const responses = responsesSnap.docs.map(d => {
-        const data = d.data();
-        return {
-          id: d.id,
-          role: 'assistant' as const,
-          content: data.text || data.content || '',
-          createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()
-        };
-      });
-
-      const combined = [...queries, ...responses].sort((a, b) => {
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      });
-
-      set({ messages: combined, isLoadingMessages: false });
+      set({ messages: flatMsgs, isLoadingMessages: false });
     } catch (error) {
       set({ isLoadingMessages: false });
     }
@@ -161,14 +156,14 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
         crisisDetected: false
       });
 
-      // Add welcome message to responses
-      await addDoc(collection(db, 'chats', chatRef.id, 'responses'), {
-        text: `Hello ${user.name || 'friend'}! I am CalmNest, your safe space for support, reflection, and mindfulness. How are you feeling today?`,
+      // Add welcome message inside a messages doc using response fields
+      await addDoc(collection(db, 'chats', chatRef.id, 'messages'), {
+        responseText: `Hello ${user.name || 'friend'}! I am CalmNest, your safe space for support, reflection, and mindfulness. How are you feeling today?`,
         senderId: 'ai',
         senderType: 'ai',
         role: 'assistant',
-        sentiment: 'Hopeful',
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        responseCreatedAt: serverTimestamp()
       });
 
       const newConv: ConversationSummary = {
@@ -244,8 +239,8 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
     }));
 
     try {
-      // Save user query to queries subcollection
-      const queryDoc = await addDoc(collection(db, 'chats', convId, 'queries'), {
+      // Save user query to Firestore messages collection
+      const msgDocRef = await addDoc(collection(db, 'chats', convId, 'messages'), {
         text,
         content: text,
         senderId: user.id,
@@ -276,16 +271,10 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
         crisis = data.crisisDetected || false;
       }
 
-      // Save AI response to responses subcollection, referencing the user query ID
-      const aiDoc = await addDoc(collection(db, 'chats', convId, 'responses'), {
-        text: aiResponseText,
-        content: aiResponseText,
-        senderId: 'ai',
-        senderType: 'ai',
-        role: 'assistant',
-        queryId: queryDoc.id,
-        queryText: text,
-        createdAt: serverTimestamp()
+      // Save AI response inside the same messages document under response fields
+      await updateDoc(msgDocRef, {
+        responseText: aiResponseText,
+        responseCreatedAt: serverTimestamp()
       });
 
       if (crisis) {
@@ -295,14 +284,14 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
       }
 
       const aiMsgObj: ChatMessage = {
-        id: aiDoc.id,
+        id: msgDocRef.id + '-ai',
         role: 'assistant',
         content: aiResponseText,
         createdAt: new Date().toISOString()
       };
 
       set(state => ({
-        messages: state.messages.filter(m => m.id !== tempUserMsg.id).concat({ ...tempUserMsg, id: `user-${Date.now()}` }, aiMsgObj),
+        messages: state.messages.filter(m => m.id !== tempUserMsg.id).concat({ ...tempUserMsg, id: msgDocRef.id + '-user' }, aiMsgObj),
         isSending: false,
         crisisDetected: state.crisisDetected || crisis
       }));

@@ -99,54 +99,43 @@ export default function ChatInterface() {
   useEffect(() => {
     if (!chatId) return;
 
-    const queriesRef = collection(db, 'chats', chatId, 'queries');
-    const responsesRef = collection(db, 'chats', chatId, 'responses');
+    const q = query(
+      collection(db, 'chats', chatId, 'messages'),
+      orderBy('createdAt', 'asc'),
+      limit(50)
+    );
 
-    let currentQueries: any[] = [];
-    let currentResponses: any[] = [];
+    const unsub = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any[];
 
-    const getTime = (val: any) => {
-      if (!val) return Date.now();
-      if (val.toDate) return val.toDate().getTime();
-      if (val.seconds) return val.seconds * 1000;
-      return new Date(val).getTime() || Date.now();
-    };
+      const flatMsgs: Message[] = [];
+      docs.forEach(doc => {
+        if (doc.text) {
+          flatMsgs.push({
+            id: doc.id + '-user',
+            text: doc.text,
+            senderType: 'user',
+            createdAt: doc.createdAt
+          });
+        }
+        if (doc.responseText) {
+          flatMsgs.push({
+            id: doc.id + '-ai',
+            text: doc.responseText,
+            senderType: 'ai',
+            createdAt: doc.responseCreatedAt || doc.createdAt
+          });
+        }
+      });
 
-    const updateCombined = () => {
-      const merged = [
-        ...currentQueries.map(q => ({
-          id: q.id,
-          text: q.text,
-          senderType: 'user' as const,
-          createdAt: q.createdAt
-        })),
-        ...currentResponses.map(r => ({
-          id: r.id,
-          text: r.text,
-          senderType: 'ai' as const,
-          createdAt: r.createdAt
-        }))
-      ];
-      
-      merged.sort((a, b) => getTime(a.createdAt) - getTime(b.createdAt));
-      setMessages(merged);
+      setMessages(flatMsgs);
       scrollToBottom();
-    };
-
-    const unsubQueries = onSnapshot(query(queriesRef, orderBy('createdAt', 'asc'), limit(50)), (snapshot) => {
-      currentQueries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      updateCombined();
     });
 
-    const unsubResponses = onSnapshot(query(responsesRef, orderBy('createdAt', 'asc'), limit(50)), (snapshot) => {
-      currentResponses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      updateCombined();
-    });
-
-    return () => {
-      unsubQueries();
-      unsubResponses();
-    };
+    return unsub;
   }, [chatId]);
 
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -158,7 +147,7 @@ export default function ChatInterface() {
     setIsLoading(true);
 
     try {
-      const queryDoc = await addDoc(collection(db, 'chats', chatId, 'queries'), {
+      const msgDocRef = await addDoc(collection(db, 'chats', chatId, 'messages'), {
         text,
         senderId: user.uid,
         anonymousUserId: user.uid,
@@ -189,14 +178,9 @@ export default function ChatInterface() {
         await updateDoc(doc(db, 'chats', chatId), { crisisDetected: true });
       }
 
-      await addDoc(collection(db, 'chats', chatId, 'responses'), {
-        text: data.text,
-        senderId: 'ai',
-        anonymousUserId: user.uid,
-        senderType: 'ai',
-        queryId: queryDoc.id,
-        queryText: text,
-        createdAt: serverTimestamp()
+      await updateDoc(msgDocRef, {
+        responseText: data.text,
+        responseCreatedAt: serverTimestamp()
       });
 
     } catch (err: any) {
@@ -223,7 +207,7 @@ export default function ChatInterface() {
       });
       setShowMoodPicker(false);
       
-      await addDoc(collection(db, 'chats', chatId, 'queries'), {
+      await addDoc(collection(db, 'chats', chatId, 'messages'), {
         text: `I'm feeling a ${mood}/5 today.`,
         senderId: user.uid,
         senderType: 'user',
