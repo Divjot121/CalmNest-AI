@@ -1,0 +1,47 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-primary: #4F46E5;
+  --color-primary-light: #6366F1;
+  --color-primary-lighter: #818CF8;
+  --color-secondary: #10B981;
+  --color-accent: #06B6D4;
+  
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply selection:bg-primary/20 bg-[#F8FAFC] text-slate-900;
+  }
+}
+
+.glass {
+  @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-2xl shadow-slate-200/50;
+}
+
+.chat-bubble-ai {
+  @apply bg-white text-slate-800 border border-slate-100 rounded-2xl rounded-tl-none shadow-sm transition-all hover:shadow-md;
+}
+
+.chat-bubble-user {
+  @apply bg-indigo-600 text-white rounded-2xl rounded-tr-none shadow-lg shadow-indigo-100 transition-all hover:shadow-indigo-200;
+}
+
+.card-geometric {
+  @apply bg-white border border-slate-100 shadow-lg shadow-slate-100 rounded-[32px] p-8 transition-all hover:shadow-xl hover:shadow-indigo-100/50;
+}
+
+.btn-primary {
+  @apply bg-indigo-600 text-white rounded-full font-semibold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95 px-6 py-2.5;
+}
+
+.btn-secondary {
+  @apply bg-white border border-slate-200 text-slate-600 rounded-2xl font-semibold hover:bg-slate-50 transition-all active:scale-95 px-8 py-4;
+}
+
+.badge-emerald {
+  @apply inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold uppercase tracking-wider;
+}

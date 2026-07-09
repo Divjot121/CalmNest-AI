@@ -1,0 +1,24 @@
+{
+  "collections": {
+    "chats": {
+      "userId": { "type": "string" },
+      "status": { "type": "string" },
+      "createdAt": { "type": "timestamp" },
+      "updatedAt": { "type": "timestamp" },
+      "crisisDetected": { "type": "boolean" },
+      "subcollections": {
+        "messages": {
+          "text": { "type": "string" },
+          "senderId": { "type": "string" },
+          "senderType": { "type": "string" },
+          "createdAt": { "type": "timestamp" }
+        }
+      }
+    },
+    "moodLogs": {
+      "userId": { "type": "string" },
+      "mood": { "type": "number" },
+      "createdAt": { "type": "timestamp" }
+    }
+  }
+}
