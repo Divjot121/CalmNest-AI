@@ -8,9 +8,22 @@ import {
   signInAnonymously,
   updateProfile,
   sendPasswordResetEmail,
+  linkWithCredential,
+  EmailAuthProvider,
   User as FirebaseUser
 } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import { getUserProfile, createOrUpdateUserProfile, UserProfile } from '@/lib/firestore-service';
+import {
+  getOrCreateAnonymousUUID,
+  getStoredPreferences,
+  mergeAnonymousProfileToAccount,
+  exportAllAnonymousData,
+  deleteAnonymousDataAndReset,
+  captureAnonymousData,
+  mergeCapturedDataToAccount
+} from '@/lib/identity-service';
+import { useSettingsStore } from './useSettingsStore';
 
 export interface User {
   id: string;
@@ -34,6 +47,9 @@ interface AuthState {
   loginAnonymously: () => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  mergeAccount: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  exportData: () => Record<string, any>;
+  deleteAnonymousAndReset: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -44,7 +60,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   checkAuth: () => {
     return new Promise((resolve) => {
       set({ isLoading: true });
-      const unsub = onAuthStateChanged(auth, async (u) => {
+      // Immediately initialize persistent anonymous device identity & streak
+      const anonUuid = getOrCreateAnonymousUUID();
+      const prefs = getStoredPreferences();
+
+      onAuthStateChanged(auth, async (u) => {
         if (u) {
           let profile = null;
           try {
@@ -56,8 +76,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               email: u.email || `anon_${u.uid.slice(0, 6)}@calmnest.org`,
               name: u.displayName || (u.isAnonymous ? 'Anonymous Guest' : 'CalmNest User'),
               role: 'USER',
-              streak: 1,
-              bestStreak: 1,
+              streak: prefs.streakDays || 1,
+              bestStreak: prefs.streakDays || 1,
             };
             try {
               await createOrUpdateUserProfile(u.uid, profile);
@@ -66,17 +86,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const userObj: User = {
             id: u.uid,
             email: profile.email || u.email || '',
-            name: profile.name || u.displayName || 'Anonymous Guest',
+            name: profile.name || u.displayName || (u.isAnonymous ? 'Anonymous Guest' : 'CalmNest User'),
             role: profile.role || 'USER',
             avatarUrl: profile.avatarUrl || u.photoURL,
-            streak: profile.streak || 1,
-            bestStreak: profile.bestStreak || 1,
+            streak: profile.streak || prefs.streakDays || 1,
+            bestStreak: profile.bestStreak || prefs.streakDays || 1,
             isAnonymous: u.isAnonymous,
           };
           set({ user: userObj, firebaseUser: u, isLoading: false });
           resolve(userObj);
         } else {
-          // Auto sign-in anonymously so zero login is required for chat
+          // Auto sign-in anonymously so zero login is required for chat or cloud storage
           try {
             const cred = await signInAnonymously(auth);
             let profile = null;
@@ -89,8 +109,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 email: `anon_${cred.user.uid.slice(0, 6)}@calmnest.org`,
                 name: 'Anonymous Guest',
                 role: 'USER',
-                streak: 1,
-                bestStreak: 1,
+                streak: prefs.streakDays || 1,
+                bestStreak: prefs.streakDays || 1,
               };
               try {
                 await createOrUpdateUserProfile(cred.user.uid, profile);
@@ -101,22 +121,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               email: profile?.email || `anon_${cred.user.uid.slice(0, 6)}@calmnest.org`,
               name: profile?.name || 'Anonymous Guest',
               role: profile?.role || 'USER',
-              streak: profile?.streak || 1,
-              bestStreak: profile?.bestStreak || 1,
+              streak: profile?.streak || prefs.streakDays || 1,
+              bestStreak: profile?.bestStreak || prefs.streakDays || 1,
               isAnonymous: true,
             };
             set({ user: userObj, firebaseUser: cred.user, isLoading: false });
             resolve(userObj);
           } catch (err) {
-            // Fallback anonymous memory user if offline
-            const tempId = `anon_${Math.random().toString(36).substring(2, 10)}`;
+            // Offline fallback resilience using persistent anonymous UUID
             const fallbackUser: User = {
-              id: tempId,
-              email: `${tempId}@calmnest.org`,
+              id: anonUuid,
+              email: `${anonUuid.slice(0, 10)}@calmnest.org`,
               name: 'Anonymous Guest',
               role: 'USER',
-              streak: 1,
-              bestStreak: 1,
+              streak: prefs.streakDays || 1,
+              bestStreak: prefs.streakDays || 1,
               isAnonymous: true,
             };
             set({ user: fallbackUser, firebaseUser: null, isLoading: false });
@@ -129,7 +148,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email, pass) => {
     try {
       set({ isLoading: true });
+      const oldUid = auth.currentUser?.uid || getOrCreateAnonymousUUID();
+
+      // Capture anonymous data BEFORE signing in to the new account
+      const anonData = await captureAnonymousData(oldUid);
+
       const cred = await signInWithEmailAndPassword(auth, email, pass);
+
+      // Merge the captured data into the permanent account
+      await mergeCapturedDataToAccount(oldUid, cred.user.uid, anonData);
+
       const profile = await getUserProfile(cred.user.uid);
       const userObj: User = {
         id: cred.user.uid,
@@ -140,6 +168,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         bestStreak: profile?.bestStreak || 1,
         isAnonymous: false,
       };
+
+      // Load remote settings/preferences immediately
+      await useSettingsStore.getState().loadPreferences();
+
       set({ user: userObj, firebaseUser: cred.user, isLoading: false });
       return { success: true };
     } catch (error: any) {
@@ -154,30 +186,81 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signup: async (email, pass, name) => {
     try {
       set({ isLoading: true });
-      const cred = await createUserWithEmailAndPassword(auth, email, pass);
-      await updateProfile(cred.user, { displayName: name });
-      
-      const profile: UserProfile = {
-        uid: cred.user.uid,
-        email: cred.user.email || email,
-        name,
-        role: 'USER',
-        streak: 1,
-        bestStreak: 1,
-      };
-      await createOrUpdateUserProfile(cred.user.uid, profile);
+      const oldUid = auth.currentUser?.uid || getOrCreateAnonymousUUID();
 
-      const userObj: User = {
-        id: cred.user.uid,
-        email: profile.email,
-        name: profile.name,
-        role: profile.role,
-        streak: profile.streak,
-        bestStreak: profile.bestStreak,
-        isAnonymous: false,
-      };
-      set({ user: userObj, firebaseUser: cred.user, isLoading: false });
-      return { success: true };
+      const currentUser = auth.currentUser;
+      if (currentUser && currentUser.isAnonymous) {
+        const credential = EmailAuthProvider.credential(email, pass);
+        const cred = await linkWithCredential(currentUser, credential);
+        await updateProfile(cred.user, { displayName: name });
+
+        const prefs = getStoredPreferences();
+        const profile: UserProfile = {
+          uid: cred.user.uid,
+          email: cred.user.email || email,
+          name,
+          role: 'USER',
+          streak: prefs.streakDays || 1,
+          bestStreak: prefs.streakDays || 1,
+        };
+        await createOrUpdateUserProfile(cred.user.uid, profile);
+        await setDoc(doc(db, 'users', cred.user.uid), {
+          isAnonymous: false,
+          email: cred.user.email || email,
+          name,
+          preferences: prefs
+        }, { merge: true });
+
+        const userObj: User = {
+          id: cred.user.uid,
+          email: profile.email,
+          name: profile.name,
+          role: profile.role,
+          streak: profile.streak,
+          bestStreak: profile.bestStreak,
+          isAnonymous: false,
+        };
+
+        // Load remote settings/preferences immediately
+        await useSettingsStore.getState().loadPreferences();
+
+        set({ user: userObj, firebaseUser: cred.user, isLoading: false });
+        return { success: true };
+      } else {
+        // Fallback: create fresh email/password account and merge
+        const cred = await createUserWithEmailAndPassword(auth, email, pass);
+        await updateProfile(cred.user, { displayName: name });
+
+        const anonData = await captureAnonymousData(oldUid);
+        await mergeCapturedDataToAccount(oldUid, cred.user.uid, anonData);
+
+        const prefs = getStoredPreferences();
+        const profile: UserProfile = {
+          uid: cred.user.uid,
+          email: cred.user.email || email,
+          name,
+          role: 'USER',
+          streak: prefs.streakDays || 1,
+          bestStreak: prefs.streakDays || 1,
+        };
+        await createOrUpdateUserProfile(cred.user.uid, profile);
+
+        const userObj: User = {
+          id: cred.user.uid,
+          email: profile.email,
+          name: profile.name,
+          role: profile.role,
+          streak: profile.streak,
+          bestStreak: profile.bestStreak,
+          isAnonymous: false,
+        };
+
+        // Load remote settings/preferences immediately
+        await useSettingsStore.getState().loadPreferences();
+
+        set({ user: userObj, firebaseUser: cred.user, isLoading: false });
+        return { success: true };
+      }
     } catch (error: any) {
       set({ isLoading: false });
       let errorMsg = error.message || 'Registration failed';
@@ -193,6 +276,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       set({ isLoading: true });
       const cred = await signInAnonymously(auth);
+      const prefs = getStoredPreferences();
       let profile = await getUserProfile(cred.user.uid);
       if (!profile) {
         profile = {
@@ -200,8 +284,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           email: `anon_${cred.user.uid.slice(0, 6)}@calmnest.org`,
           name: 'Anonymous Guest',
           role: 'USER',
-          streak: 1,
-          bestStreak: 1,
+          streak: prefs.streakDays || 1,
+          bestStreak: prefs.streakDays || 1,
         };
         await createOrUpdateUserProfile(cred.user.uid, profile);
       }
@@ -218,18 +302,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { success: true };
     } catch (error: any) {
       set({ isLoading: false });
-      return { success: false, error: error.message || 'Anonymous login failed' };
+      const anonUuid = getOrCreateAnonymousUUID();
+      const prefs = getStoredPreferences();
+      const fallbackUser: User = {
+        id: anonUuid,
+        email: `${anonUuid.slice(0, 10)}@calmnest.org`,
+        name: 'Anonymous Guest',
+        role: 'USER',
+        streak: prefs.streakDays || 1,
+        bestStreak: prefs.streakDays || 1,
+        isAnonymous: true,
+      };
+      set({ user: fallbackUser, firebaseUser: null, isLoading: false });
+      return { success: true };
     }
   },
   logout: async () => {
     try {
       await signOut(auth);
-      set({ user: null, firebaseUser: null });
-      if (typeof window !== 'undefined') {
-        window.location.href = '/';
-      }
+      // Seamlessly reconnect to anonymous session rather than forcing login
+      get().loginAnonymously();
     } catch (error) {
-      set({ user: null, firebaseUser: null });
+      get().loginAnonymously();
     }
   },
   resetPassword: async (email) => {
@@ -240,4 +334,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { success: false, error: error.message || 'Failed to send reset email' };
     }
   },
+  mergeAccount: async (email, pass) => {
+    return get().login(email, pass);
+  },
+  exportData: () => {
+    return exportAllAnonymousData();
+  },
+  deleteAnonymousAndReset: () => {
+    deleteAnonymousDataAndReset();
+    get().loginAnonymously();
+  }
 }));

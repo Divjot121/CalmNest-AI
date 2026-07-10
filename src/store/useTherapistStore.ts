@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { useAuthStore } from './useAuthStore';
-import { db } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import {
   collection,
   doc,
@@ -65,7 +65,7 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
       if (!user?.id) {
         user = (await useAuthStore.getState().loginAnonymously())?.success ? useAuthStore.getState().user : null;
       }
-      if (!user?.id) {
+      if (!user?.id || !auth.currentUser) {
         set({ isLoadingConversations: false });
         return;
       }
@@ -104,6 +104,10 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
     }
     set({ activeConversationId: id, isLoadingMessages: true, crisisDetected: false });
     try {
+      if (!auth.currentUser) {
+        set({ isLoadingMessages: false });
+        return;
+      }
       const chatDocRef = doc(db, 'chats', id);
       const chatDoc = await getDoc(chatDocRef);
       if (chatDoc.exists()) {
@@ -145,7 +149,7 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
   createNewConversation: async (title = 'New Session') => {
     try {
       const user = useAuthStore.getState().user;
-      if (!user?.id) return null;
+      if (!user?.id || !auth.currentUser) return null;
 
       const chatRef = await addDoc(collection(db, 'chats'), {
         userId: user.id,
@@ -185,6 +189,7 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
   },
   deleteConversation: async (id) => {
     try {
+      if (!auth.currentUser) return false;
       await deleteDoc(doc(db, 'chats', id));
       set(state => {
         const remaining = state.conversations.filter(c => c.id !== id);
@@ -206,6 +211,7 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
   },
   renameConversation: async (id, newTitle) => {
     try {
+      if (!auth.currentUser) return false;
       await updateDoc(doc(db, 'chats', id), { title: newTitle, updatedAt: serverTimestamp() });
       set(state => ({
         conversations: state.conversations.map(c => c.id === id ? { ...c, title: newTitle } : c)
@@ -218,7 +224,7 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
   sendMessage: async (text) => {
     if (!text.trim() || get().isSending) return false;
     const user = useAuthStore.getState().user;
-    if (!user?.id) return false;
+    if (!user?.id || !auth.currentUser) return false;
 
     let convId = get().activeConversationId;
     if (!convId) {

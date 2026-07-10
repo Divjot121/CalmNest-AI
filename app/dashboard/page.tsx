@@ -3,26 +3,25 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Heart,
-  Flame,
   SmilePlus,
   MessageSquareHeart,
   BookOpen,
   Compass,
-  ListTodo,
-  ClipboardCheck,
   CheckCircle2,
-  Circle,
-  Plus,
   TrendingUp,
   Sparkles,
   ArrowRight,
-  ShieldCheck,
   Loader2,
-  Clock,
-  Calendar
+  Globe,
+  Sun,
+  Moon,
+  ListTodo,
+  ShieldCheck,
+  Leaf,
+  Settings
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import AppSidebar from '@/components/AppSidebar';
@@ -30,47 +29,47 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useWellnessStore } from '@/store/useWellnessStore';
 import { useHabitStore } from '@/store/useHabitStore';
 import { useTherapistStore } from '@/store/useTherapistStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { useSanctuaryTranslation, SupportedLanguage } from '@/lib/i18n/useSanctuaryTranslation';
+import { SanctuaryWelcome } from '@/components/SanctuaryWelcome';
+import { AmbiencePlayer } from '@/components/AmbiencePlayer';
+import { triggerGentleSanctuaryCelebration } from '@/components/SanctuaryConfetti';
 
 const moodOptions = [
-  { score: 1, label: 'Struggling', icon: '😔', color: 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100' },
-  { score: 2, label: 'Low', icon: '😕', color: 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100' },
-  { score: 3, label: 'Okay', icon: '😐', color: 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100' },
-  { score: 4, label: 'Good', icon: '🙂', color: 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' },
-  { score: 5, label: 'Great', icon: '😄', color: 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' },
-];
-
-const wellnessTips = [
-  {
-    title: 'Box Breathing Technique',
-    desc: 'Inhale for 4 seconds, hold for 4, exhale for 4, hold for 4. Repeat 3 times to instantly lower cortisol.',
-    tag: 'Mindfulness',
-    color: 'from-blue-500/10 to-indigo-500/10 border-blue-200 text-blue-900',
-  },
-  {
-    title: 'The 3-3-3 Grounding Rule',
-    desc: 'Name 3 things you see, 3 sounds you hear, and move 3 parts of your body when anxiety spikes.',
-    tag: 'Anxiety Relief',
-    color: 'from-emerald-500/10 to-teal-500/10 border-emerald-200 text-emerald-900',
-  },
-  {
-    title: 'Cognitive Reframing',
-    desc: 'Notice an unhelpful thought? Ask: Is this thought 100% true right now? What would I tell a close friend?',
-    tag: 'CBT Strategy',
-    color: 'from-purple-500/10 to-pink-500/10 border-purple-200 text-purple-900',
-  },
+  { score: 1, label: 'Struggling', icon: '😔', color: 'bg-rose-50/80 border-rose-200/80 text-rose-700 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300' },
+  { score: 2, label: 'Low', icon: '😕', color: 'bg-amber-50/80 border-amber-200/80 text-amber-700 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300' },
+  { score: 3, label: 'Okay', icon: '😐', color: 'bg-slate-50/80 border-slate-200/80 text-slate-700 dark:bg-[#252932] dark:border-[#2B2F38] dark:text-slate-300' },
+  { score: 4, label: 'Good', icon: '🙂', color: 'bg-[#E8F0F8] border-[#8DA9B7]/60 text-[#436475] dark:bg-[#5C8397]/20 dark:border-[#5C8397]/40 dark:text-[#A1C2D4]' },
+  { score: 5, label: 'Great', icon: '😄', color: 'bg-[#E6EFEA] border-[#6B907B]/60 text-[#4A725D] dark:bg-[#6B907B]/20 dark:border-[#6B907B]/40 dark:text-[#A8C8B5]' },
 ];
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { t, currentLanguage, setLanguage } = useSanctuaryTranslation();
   const { user, isLoading: authLoading } = useAuthStore();
   const { todayMood, recentLogs, streak, fetchDashboardData, logMood, isLoading: moodLoading } = useWellnessStore();
   const { habits, fetchHabits, toggleCompletion, isLoading: habitsLoading } = useHabitStore();
   const { createNewConversation } = useTherapistStore();
+  const { openSettings, preferences } = useSettingsStore();
 
+  const [isOnboarded, setIsOnboarded] = useState(true);
   const [selectedMoodScore, setSelectedMoodScore] = useState<number | null>(null);
-  const [moodNotes, setMoodNotes] = useState('');
   const [isLoggingMood, setIsLoggingMood] = useState(false);
-  const [activeTipIndex, setActiveTipIndex] = useState(0);
+  const [showLangMenu, setShowLangMenu] = useState(false);
+  const [greeting, setGreeting] = useState('Good day');
+
+  useEffect(() => {
+    const checkOnboarded = localStorage.getItem('calmnest_onboarded');
+    const hour = new Date().getHours();
+    setTimeout(() => {
+      if (!checkOnboarded) {
+        setIsOnboarded(false);
+      }
+      if (hour < 12) setGreeting('Good morning');
+      else if (hour < 18) setGreeting('Good afternoon');
+      else setGreeting('Good evening');
+    }, 0);
+  }, []);
 
   useEffect(() => {
     if (!authLoading) {
@@ -79,336 +78,424 @@ export default function DashboardPage() {
     }
   }, [authLoading, fetchDashboardData, fetchHabits]);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setActiveTipIndex((prev) => (prev + 1) % wellnessTips.length);
-    }, 10000);
-    return () => clearInterval(timer);
-  }, []);
-
   const handleQuickMoodSubmit = async (score: number) => {
     setIsLoggingMood(true);
-    await logMood(score, 3, ['check-in'], moodNotes || `Logged from quick check-in`);
+    await logMood(score, 3, ['check-in'], `Logged from Sanctuary Check-in`);
     setIsLoggingMood(false);
     setSelectedMoodScore(null);
-    setMoodNotes('');
+    triggerGentleSanctuaryCelebration('petals');
   };
 
   const handleStartTherapySession = async () => {
-    const convId = await createNewConversation('Quick Wellness Check-in');
-    if (convId) {
-      router.push('/chat');
-    } else {
-      router.push('/chat');
-    }
+    await createNewConversation('Sanctuary Check-in');
+    router.push('/chat');
   };
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  };
-
-  // Prepare chart data
-  const chartData = [...recentLogs]
-    .reverse()
-    .slice(-7)
-    .map((l, idx) => ({
-      day: new Date(l.createdAt).toLocaleDateString('en-US', { weekday: 'short' }),
-      score: l.moodScore,
-    }));
-
-  if (chartData.length === 0) {
-    // Fallback sample trend if no logs yet
-    chartData.push(
-      { day: 'Mon', score: 3 },
-      { day: 'Tue', score: 4 },
-      { day: 'Wed', score: 3 },
-      { day: 'Thu', score: 5 },
-      { day: 'Fri', score: 4 },
-      { day: 'Sat', score: 4 },
-      { day: 'Sun', score: todayMood?.moodScore || 4 }
-    );
+  if (!isOnboarded) {
+    return <SanctuaryWelcome onEnter={() => setIsOnboarded(true)} />;
   }
+
+  // Calculate Virtual Plant Stage
+  const activeStreak = user?.streak || streak || 1;
+  const completedHabitsCount = habits.filter(h => h.completedToday).length;
+  const totalWellnessScore = activeStreak * 2 + completedHabitsCount + (todayMood ? 5 : 0);
+  
+  let plantStage = { title: 'Sanctuary Sprout 🌱', desc: 'Your plant just sprouted! Take a deep breath to nurture its roots.', stageNum: 1 };
+  if (totalWellnessScore > 18) {
+    plantStage = { title: 'Blooming Lotus 🪷', desc: 'Your lotus is in full bloom. You are creating deep harmony inside.', stageNum: 3 };
+  } else if (totalWellnessScore > 8) {
+    plantStage = { title: 'Flourishing Leaf 🌿', desc: 'Your plant is growing strong with every gentle daily check-in.', stageNum: 2 };
+  }
+
+  // Formatting chart data
+  const chartData = [...recentLogs]
+    .slice(0, 7)
+    .reverse()
+    .map((log) => ({
+      date: new Date(log.createdAt).toLocaleDateString([], { weekday: 'short' }),
+      mood: log.moodScore,
+    }));
 
   return (
     <AppSidebar>
-      <div className="p-4 md:p-8 space-y-8 max-w-6xl mx-auto">
-        {/* Welcome Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6 md:p-8 rounded-3xl shadow-xl shadow-indigo-600/10 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
-          <div className="relative z-10 space-y-1">
-            <div className="flex items-center gap-2 text-indigo-200 text-xs font-bold uppercase tracking-wider">
-              <Sparkles size={14} />
-              <span>Personalized Wellness Center</span>
+      <div className="p-4 sm:p-6 md:p-8 space-y-8 max-w-6xl mx-auto bg-[#FAF9F6] dark:bg-[#16181D] min-h-screen transition-colors duration-300 select-none">
+        
+        {/* 1. Daily Greeting & Workspace Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/60 dark:border-[#2B2F38]">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="badge-emerald py-0.5 px-2.5 text-[11px]">🍃 Sanctuary Workspace</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">•</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">
+                {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+              </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold font-display">
-              {getGreeting()}, {user?.name?.split(' ')[0] || 'Friend'} 👋
+            <h1 className="text-2xl sm:text-3xl font-medium text-slate-900 dark:text-slate-100 tracking-tight">
+              {greeting}, {user?.name || 'Friend'}
             </h1>
-            <p className="text-sm text-indigo-100/90 max-w-xl">
-              Take a moment to check in with yourself. Small daily mindfulness habits lead to profound long-term inner peace.
-            </p>
           </div>
-          <div className="relative z-10 flex items-center gap-3 bg-white/15 backdrop-blur-md px-5 py-3.5 rounded-2xl border border-white/20 shrink-0">
-            <div className="w-10 h-10 bg-amber-500/20 text-amber-300 rounded-xl flex items-center justify-center font-bold text-lg">
-              🔥
-            </div>
-            <div>
-              <p className="text-[11px] font-bold uppercase text-indigo-200">Current Streak</p>
-              <p className="text-xl font-bold font-display">{streak || 1} Days Active</p>
-            </div>
-          </div>
-        </div>
 
-        {/* Quick Actions Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button
-            onClick={handleStartTherapySession}
-            className="flex flex-col justify-between p-5 bg-white hover:bg-indigo-50/50 border border-slate-200/80 hover:border-indigo-300 rounded-3xl shadow-sm transition-all group text-left"
-          >
-            <div className="w-11 h-11 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <MessageSquareHeart size={22} />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm">24/7 AI Therapist</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Start anonymous chat</p>
-            </div>
-          </button>
+          <div className="flex items-center gap-3 self-start sm:self-auto">
+            {/* Sanctuary Settings Action */}
+            <button
+              onClick={() => openSettings()}
+              className="btn-secondary py-2 px-3 text-xs gap-2"
+              title="Open Sanctuary Settings"
+            >
+              <Settings size={14} strokeWidth={1.75} className="text-[#5C8397] dark:text-[#A1C2D4]" />
+              <span className="hidden sm:inline">Preferences</span>
+            </button>
 
-          <Link
-            href="/mood"
-            className="flex flex-col justify-between p-5 bg-white hover:bg-emerald-50/50 border border-slate-200/80 hover:border-emerald-300 rounded-3xl shadow-sm transition-all group text-left"
-          >
-            <div className="w-11 h-11 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <SmilePlus size={22} />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm">Mood Trends</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Track & analyze emotions</p>
-            </div>
-          </Link>
+            {/* Language Selection Pill */}
+            <div className="relative">
+              <button
+                onClick={() => setShowLangMenu(!showLangMenu)}
+                className="btn-secondary py-2 px-3 text-xs gap-2"
+                aria-label="Change language"
+              >
+                <Globe size={14} strokeWidth={1.75} className="text-[#5C8397] dark:text-[#A1C2D4]" />
+                <span className="uppercase font-mono font-medium">{currentLanguage}</span>
+              </button>
 
-          <Link
-            href="/journal"
-            className="flex flex-col justify-between p-5 bg-white hover:bg-purple-50/50 border border-slate-200/80 hover:border-purple-300 rounded-3xl shadow-sm transition-all group text-left"
-          >
-            <div className="w-11 h-11 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <BookOpen size={22} />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm">Reflective Journal</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Write private entries</p>
-            </div>
-          </Link>
-
-          <Link
-            href="/meditation"
-            className="flex flex-col justify-between p-5 bg-white hover:bg-blue-50/50 border border-slate-200/80 hover:border-blue-300 rounded-3xl shadow-sm transition-all group text-left"
-          >
-            <div className="w-11 h-11 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Compass size={22} />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm">Guided Breathing</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Box & 4-7-8 exercises</p>
-            </div>
-          </Link>
-        </div>
-
-        {/* Main 2-Column Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left 2 Cols: Daily Check-in & Habits */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Daily Mood Check-In Widget */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 md:p-8 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900 font-display">How are you feeling right now?</h2>
-                  <p className="text-xs text-slate-500">Log your current mood to track emotional shifts throughout the day</p>
-                </div>
-                {todayMood && (
-                  <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200 flex items-center gap-1.5">
-                    <CheckCircle2 size={14} />
-                    <span>Checked In Today</span>
-                  </span>
-                )}
-              </div>
-
-              {todayMood && !selectedMoodScore ? (
-                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className="text-4xl">
-                      {moodOptions.find((o) => o.score === todayMood.moodScore)?.icon || '😐'}
-                    </span>
-                    <div>
-                      <h4 className="font-bold text-sm text-slate-900">
-                        Today&apos;s Mood: {moodOptions.find((o) => o.score === todayMood.moodScore)?.label} ({todayMood.moodScore}/5)
-                      </h4>
-                      {todayMood.notes && <p className="text-xs text-slate-600 mt-0.5 italic">&quot;{todayMood.notes}&quot;</p>}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setSelectedMoodScore(todayMood.moodScore)}
-                    className="text-xs font-semibold text-indigo-600 hover:underline"
+              <AnimatePresence>
+                {showLangMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-2 w-36 bg-white dark:bg-[#1E2128] rounded-xl shadow-md border border-slate-200/80 dark:border-[#2B2F38] py-1 z-50"
                   >
-                    Update Mood
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-5 gap-2 md:gap-3">
-                    {moodOptions.map((opt) => (
+                    {[
+                      { code: 'en', label: 'English 🇺🇸' },
+                      { code: 'hi', label: 'हिन्दी 🇮🇳' },
+                      { code: 'pa', label: 'ਪੰਜਾਬੀ 🇮🇳' },
+                    ].map((lang) => (
                       <button
-                        key={opt.score}
-                        disabled={isLoggingMood}
-                        onClick={() => handleQuickMoodSubmit(opt.score)}
-                        className={`p-3 md:p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all active:scale-95 ${opt.color} ${
-                          selectedMoodScore === opt.score ? 'ring-2 ring-indigo-600 scale-105' : ''
+                        key={lang.code}
+                        onClick={() => {
+                          setLanguage(lang.code as SupportedLanguage);
+                          setShowLangMenu(false);
+                        }}
+                        className={`w-full text-left px-3.5 py-2 text-xs flex items-center justify-between transition-colors ${
+                          currentLanguage === lang.code ? 'bg-[#5C8397]/15 text-[#5C8397] dark:text-[#A1C2D4] font-medium' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#252932]'
                         }`}
                       >
-                        <span className="text-3xl md:text-4xl">{opt.icon}</span>
-                        <span className="text-xs font-bold">{opt.label}</span>
+                        <span>{lang.label}</span>
+                        {currentLanguage === lang.code && <CheckCircle2 size={13} />}
                       </button>
                     ))}
-                  </div>
-                </div>
-              )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-            {/* Daily Habits Checklist */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 md:p-8 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900 font-display">Daily Wellness Habits</h2>
-                  <p className="text-xs text-slate-500">Complete daily routines to build long-term mental resilience</p>
-                </div>
-                <Link
-                  href="/habits"
-                  className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                >
-                  <span>Manage</span>
-                  <ArrowRight size={14} />
-                </Link>
-              </div>
-
-              {habitsLoading ? (
-                <div className="py-8 flex justify-center">
-                  <Loader2 className="animate-spin text-indigo-600" size={24} />
-                </div>
-              ) : habits.length === 0 ? (
-                <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  <p className="text-sm font-medium text-slate-500 mb-2">No habits active yet</p>
-                  <Link href="/habits" className="text-xs font-bold text-indigo-600 hover:underline">
-                    Create your first habit
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {habits.map((h) => (
-                    <div
-                      key={h.id}
-                      onClick={() => toggleCompletion(h.id)}
-                      className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
-                        h.completedToday
-                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
-                          : 'bg-slate-50/70 border-slate-200/80 hover:bg-slate-100/80 text-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3.5">
-                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
-                          h.completedToday ? 'bg-emerald-600 text-white' : 'border-2 border-slate-300 text-transparent'
-                        }`}>
-                          <CheckCircle2 size={16} />
-                        </div>
-                        <span className="text-xl">{h.icon}</span>
-                        <div>
-                          <h4 className={`font-bold text-sm ${h.completedToday ? 'line-through text-emerald-800' : ''}`}>
-                            {h.name}
-                          </h4>
-                          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">
-                            {h.frequency}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold bg-white px-3 py-1 rounded-xl shadow-2xs border border-slate-200/80">
-                        <span>🔥</span>
-                        <span>{h.streak || 0}d</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right Col: Mood Trend Chart & Tip of the Day */}
-          <div className="space-y-8">
-            {/* Mood Trend Card */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-bold text-slate-900 font-display text-base">Mood Trend</h3>
-                  <p className="text-xs text-slate-500">Last 7 Check-ins</p>
-                </div>
-                <TrendingUp className="text-indigo-600" size={20} />
-              </div>
-
-              <div className="h-44 w-full mt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="moodGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="day" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                    <YAxis domain={[1, 5]} ticks={[1, 3, 5]} stroke="#94a3b8" fontSize={11} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1e293b', borderRadius: '12px', border: 'none', color: '#fff' }}
-                      labelStyle={{ fontWeight: 'bold' }}
-                    />
-                    <Area type="monotone" dataKey="score" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#moodGradient)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* AI Tip of the Day Carousel */}
-            <div className={`p-6 rounded-3xl border bg-gradient-to-br ${wellnessTips[activeTipIndex].color} relative overflow-hidden shadow-sm transition-all duration-500`}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 bg-white/80 rounded-full text-indigo-900">
-                  {wellnessTips[activeTipIndex].tag}
-                </span>
-                <Sparkles size={18} className="text-indigo-600 animate-pulse" />
-              </div>
-              <h3 className="font-bold text-lg mb-2 font-display">{wellnessTips[activeTipIndex].title}</h3>
-              <p className="text-xs leading-relaxed opacity-90 mb-6">{wellnessTips[activeTipIndex].desc}</p>
-              
-              <div className="flex items-center justify-between">
-                <div className="flex gap-1.5">
-                  {wellnessTips.map((_, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setActiveTipIndex(idx)}
-                      className={`h-1.5 rounded-full transition-all ${
-                        idx === activeTipIndex ? 'w-5 bg-indigo-600' : 'w-1.5 bg-slate-300'
-                      }`}
-                    />
-                  ))}
-                </div>
-                <Link
-                  href="/meditation"
-                  className="text-xs font-bold text-indigo-700 hover:underline flex items-center gap-1"
-                >
-                  <span>Try Studio</span>
-                  <ArrowRight size={14} />
-                </Link>
-              </div>
+            {/* Streak Indicator */}
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100/80 dark:bg-[#1E2128] border border-slate-200/70 dark:border-[#2B2F38] text-xs font-medium text-slate-700 dark:text-slate-300">
+              <span className="text-amber-500">🔥</span>
+              <span>{activeStreak} Days</span>
             </div>
           </div>
         </div>
+
+        {/* 2. Emotional Check-In Card (Top Priority) */}
+        {preferences.dashboardShowMood !== false && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="card-minimal"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+            <div>
+              <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100">
+                {todayMood ? "You've checked in today" : "How are you feeling right now?"}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                {todayMood 
+                  ? "Your emotional awareness lowers cognitive load and nurtures inner resilience." 
+                  : "Check in with your nervous system. Every response is private and safe."}
+              </p>
+            </div>
+            {todayMood && (
+              <Link href="/mood" className="text-xs font-medium text-[#5C8397] dark:text-[#A1C2D4] hover:underline flex items-center gap-1 self-start sm:self-auto">
+                <span>View Full Mood Journal</span>
+                <ArrowRight size={13} />
+              </Link>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {moodOptions.map((opt) => {
+              const isSelected = todayMood?.moodScore === opt.score || selectedMoodScore === opt.score;
+              return (
+                <button
+                  key={opt.score}
+                  disabled={isLoggingMood || Boolean(todayMood)}
+                  onClick={() => handleQuickMoodSubmit(opt.score)}
+                  className={`p-3.5 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all duration-200 ${opt.color} ${
+                    isSelected 
+                      ? 'ring-2 ring-[#5C8397] dark:ring-[#8DA9B7] scale-[1.02] shadow-xs font-medium' 
+                      : 'hover:border-slate-300 dark:hover:border-slate-600 opacity-90 hover:opacity-100'
+                  }`}
+                >
+                  <span className="text-2xl">{opt.icon}</span>
+                  <span className="text-xs">{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </motion.div>
+        )}
+
+        {/* 3. Today's Wellness Summary & 4. Quick Actions */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Wellness Summary */}
+          <div className="lg:col-span-1 card-minimal flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-medium text-base text-slate-900 dark:text-slate-100">Daily Summary</h3>
+                <span className="badge-blue font-mono text-[11px]">Today</span>
+              </div>
+
+              <div className="space-y-3.5">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-[#252932]/60 border border-slate-200/50 dark:border-[#2B2F38]">
+                  <span className="text-xs text-slate-600 dark:text-slate-300">Habits Completed</span>
+                  <span className="text-xs font-mono font-medium text-slate-900 dark:text-slate-100">{completedHabitsCount} of {habits.length || 1}</span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-[#252932]/60 border border-slate-200/50 dark:border-[#2B2F38]">
+                  <span className="text-xs text-slate-600 dark:text-slate-300">Current Mood State</span>
+                  <span className="text-xs font-medium text-[#6B907B] dark:text-[#A8C8B5]">
+                    {todayMood ? `${todayMood.moodScore} / 5` : 'Not logged'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-[#252932]/60 border border-slate-200/50 dark:border-[#2B2F38]">
+                  <span className="text-xs text-slate-600 dark:text-slate-300">Sanctuary Streak</span>
+                  <span className="text-xs font-mono font-medium text-amber-600 dark:text-amber-400">{activeStreak} Days</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 mt-4 border-t border-slate-200/60 dark:border-[#2B2F38]">
+              <Link href="/assessments" className="w-full btn-ghost text-xs justify-center py-2">
+                <span>Self-Assessment Screenings</span>
+                <ArrowRight size={13} />
+              </Link>
+            </div>
+          </div>
+
+          {/* Quick Shortcuts */}
+          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {preferences.dashboardShowQuickChat !== false && (
+            <div onClick={handleStartTherapySession} className="card-minimal cursor-pointer group flex flex-col justify-between hover:border-[#5C8397]/50 transition-all">
+              <div>
+                <div className="w-9 h-9 bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] rounded-xl flex items-center justify-center mb-3">
+                  <MessageSquareHeart size={18} strokeWidth={1.75} />
+                </div>
+                <h4 className="font-medium text-sm text-slate-900 dark:text-slate-100 group-hover:text-[#5C8397] dark:group-hover:text-[#A1C2D4] transition-colors">
+                  AI Therapist Session
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  Start an empathetic, non-judgmental dialogue with your AI wellness companion right now.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-medium text-[#5C8397] dark:text-[#A1C2D4] pt-4">
+                <span>Begin Chat</span>
+                <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+            )}
+
+            {preferences.dashboardShowMeditation !== false && (
+            <Link href="/meditation" className="card-minimal group flex flex-col justify-between hover:border-[#6B907B]/50 transition-all">
+              <div>
+                <div className="w-9 h-9 bg-[#E6EFEA] dark:bg-[#6B907B]/20 text-[#6B907B] dark:text-[#A8C8B5] rounded-xl flex items-center justify-center mb-3">
+                  <Compass size={18} strokeWidth={1.75} />
+                </div>
+                <h4 className="font-medium text-sm text-slate-900 dark:text-slate-100 group-hover:text-[#6B907B] dark:group-hover:text-[#A8C8B5] transition-colors">
+                  Breathing Studio
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  Calm your nervous system with interactive lotus Box Breathing and 4-7-8 relaxation exercises.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-medium text-[#6B907B] dark:text-[#A8C8B5] pt-4">
+                <span>Enter Studio</span>
+                <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
+            )}
+
+            <Link href="/journal" className="card-minimal group flex flex-col justify-between hover:border-[#8D80A9]/50 transition-all">
+              <div>
+                <div className="w-9 h-9 bg-[#EFEAF6] dark:bg-[#8D80A9]/20 text-[#8D80A9] dark:text-[#C5B8DD] rounded-xl flex items-center justify-center mb-3">
+                  <BookOpen size={18} strokeWidth={1.75} />
+                </div>
+                <h4 className="font-medium text-sm text-slate-900 dark:text-slate-100 group-hover:text-[#8D80A9] dark:group-hover:text-[#C5B8DD] transition-colors">
+                  Private Journal
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  Reflect on your day with structured mindful prompts and emotional tag filters.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-medium text-[#8D80A9] dark:text-[#C5B8DD] pt-4">
+                <span>Write Entry</span>
+                <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
+
+            {preferences.dashboardShowHabits !== false && (
+            <Link href="/habits" className="card-minimal group flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-600 transition-all">
+              <div>
+                <div className="w-9 h-9 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl flex items-center justify-center mb-3">
+                  <ListTodo size={18} strokeWidth={1.75} />
+                </div>
+                <h4 className="font-medium text-sm text-slate-900 dark:text-slate-100 transition-colors">
+                  Daily Routine & Habits
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  Track mindful rituals like hydration, gratitude, short walks, and evening reading.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 pt-4">
+                <span>Check Routine</span>
+                <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
+            )}
+          </div>
+        </div>
+
+        {/* 5. Mood Insights Chart & 8. Virtual Sanctuary Plant */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Mood Trend Chart */}
+          <div className="lg:col-span-2 card-minimal flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-medium text-base text-slate-900 dark:text-slate-100">Recent Mood Trends</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">7-day progression overview</p>
+              </div>
+              <Link href="/mood" className="btn-ghost text-xs py-1.5">
+                <span>Details</span>
+                <ArrowRight size={13} />
+              </Link>
+            </div>
+
+            <div className="h-56 w-full pt-2">
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorMood" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#5C8397" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#5C8397" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1E2128', border: 'none', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
+                    />
+                    <Area type="monotone" dataKey="mood" stroke="#5C8397" strokeWidth={2.5} fillOpacity={1} fill="url(#colorMood)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 dark:text-slate-500">
+                  <TrendingUp size={24} className="mb-2 opacity-60" />
+                  <p className="text-xs">Log your daily check-in to generate your peaceful mood trend visualization.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Virtual Plant Sprout Card */}
+          <div className="lg:col-span-1 card-minimal flex flex-col justify-between bg-gradient-to-br from-white to-[#FAF9F6] dark:from-[#1E2128] dark:to-[#16181D]">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="badge-emerald font-mono text-[11px]">Calm Corner</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">Stage {plantStage.stageNum}/3</span>
+              </div>
+
+              <div className="text-center py-4">
+                <motion.div
+                  key={plantStage.title}
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className="w-20 h-20 bg-[#E6EFEA] dark:bg-[#6B907B]/20 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl shadow-2xs"
+                >
+                  {plantStage.stageNum === 1 ? '🌱' : plantStage.stageNum === 2 ? '🌿' : '🪷'}
+                </motion.div>
+                <h4 className="font-medium text-base text-slate-900 dark:text-slate-100">{plantStage.title}</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed px-2">
+                  {plantStage.desc}
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200/60 dark:border-[#2B2F38] text-center">
+              <p className="text-[11px] text-[#6B907B] dark:text-[#A8C8B5] font-normal">
+                ✓ Grows organically with every daily check-in and habit completed.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 7. Daily Habits Checklist Snapshot */}
+        <div className="card-minimal">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-medium text-base text-slate-900 dark:text-slate-100">Today&apos;s Mindful Habits</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Gentle daily anchor routines</p>
+            </div>
+            <Link href="/habits" className="btn-ghost text-xs py-1.5">
+              <span>Manage Habits</span>
+              <ArrowRight size={13} />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {habits.slice(0, 6).map((habit) => (
+              <div
+                key={habit.id}
+                onClick={() => toggleCompletion(habit.id)}
+                className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all duration-150 ${
+                  habit.completedToday
+                    ? 'bg-slate-50/80 dark:bg-[#252932]/70 border-slate-200/80 dark:border-[#2B2F38] text-slate-400 dark:text-slate-500 line-through'
+                    : 'bg-white dark:bg-[#1E2128] border-slate-200/70 dark:border-[#2B2F38] text-slate-800 dark:text-slate-100 hover:border-slate-300 dark:hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center gap-3 truncate">
+                  <span className="text-lg">{habit.icon || '🍃'}</span>
+                  <span className="text-xs font-medium truncate">{habit.name}</span>
+                </div>
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${
+                  habit.completedToday ? 'text-[#6B907B] dark:text-[#A8C8B5]' : 'text-slate-300 dark:text-slate-600'
+                }`}>
+                  <CheckCircle2 size={18} strokeWidth={1.75} />
+                </div>
+              </div>
+            ))}
+            {habits.length === 0 && !habitsLoading && (
+              <div className="col-span-full py-6 text-center text-slate-400 dark:text-slate-500 text-xs">
+                Your mindful daily habit checklist will appear here. Click &quot;Manage Habits&quot; to customize your gentle routines.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Embedded Ambient Soundscape Studio Snapshot */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500 font-mono">
+              Ambient Soundscape Engine
+            </span>
+          </div>
+          <AmbiencePlayer />
+        </div>
+
       </div>
     </AppSidebar>
   );

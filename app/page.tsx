@@ -1,24 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Heart, 
-  Shield, 
-  Zap, 
-  Users, 
+  ShieldCheck, 
   MessageCircle, 
-  Activity, 
-  Lock, 
-  ChevronDown, 
   ArrowRight,
-  HandHelping,
-  AlertCircle,
   Menu,
   X,
-  CheckCircle2
+  Sparkles,
+  Lock,
+  Leaf,
+  Headphones,
+  Compass
 } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 
 const Navbar = () => {
@@ -26,59 +22,81 @@ const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 20);
+    const handleScroll = () => setIsScrolled(window.scrollY > 15);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 h-20 flex items-center px-6 md:px-12 relative z-10 ${isScrolled ? 'glass' : 'bg-transparent'}`}>
-      <div className="w-full flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
-            <div className="w-4 h-4 bg-white rounded-full opacity-90"></div>
+    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 h-16 flex items-center px-6 md:px-12 ${isScrolled ? 'bg-white/90 dark:bg-[#16181D]/90 backdrop-blur-md border-b border-slate-200/70 dark:border-[#2B2F38] shadow-2xs' : 'bg-transparent'}`}>
+      <div className="max-w-6xl mx-auto w-full flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2.5 group select-none">
+          <div className="w-8 h-8 bg-[#5C8397] rounded-xl flex items-center justify-center text-white shadow-2xs group-hover:scale-105 transition-transform duration-200">
+            <Sparkles size={16} strokeWidth={1.75} />
           </div>
-          <span className="text-2xl font-bold tracking-tight text-slate-800 font-display">CalmNest</span>
+          <span className="text-base font-medium tracking-tight text-slate-900 dark:text-slate-100">CalmNest</span>
+        </Link>
+
+        <div className="hidden md:flex items-center gap-8 text-sm text-slate-600 dark:text-slate-300">
+          <a href="#philosophy" className="hover:text-slate-900 dark:hover:text-white transition-colors duration-150">Philosophy</a>
+          <a href="#experience" className="hover:text-slate-900 dark:hover:text-white transition-colors duration-150">Experience</a>
+          <a href="#privacy" className="hover:text-slate-900 dark:hover:text-white transition-colors duration-150">Privacy & Safety</a>
+          <Link href="/dashboard" className="text-[#5C8397] dark:text-[#A1C2D4] font-medium hover:underline">Sanctuary Workspace</Link>
         </div>
 
-        <div className="hidden md:flex items-center gap-10 text-sm font-medium text-slate-500">
-          <a href="#features" className="hover:text-indigo-600 transition-colors">Features</a>
-          <a href="#how-it-works" className="hover:text-indigo-600 transition-colors">How it Works</a>
-          <a href="#safety" className="hover:text-indigo-600 transition-colors">Safety</a>
-          <a href="#partners" className="hover:text-indigo-600 font-semibold text-indigo-600">Partners</a>
-        </div>
-
-        <div className="hidden md:block">
-          <Link href="/chat" className="px-6 py-2.5 bg-indigo-600 text-white rounded-full text-sm font-semibold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors active:scale-95">
+        <div className="hidden md:flex items-center gap-3">
+          <Link href="/dashboard" className="btn-secondary px-4 py-2 text-xs">
+            Dashboard
+          </Link>
+          <Link href="/chat" className="btn-primary px-4 py-2 text-xs">
             Start Anonymous Chat
           </Link>
         </div>
 
-        <button className="md:hidden text-slate-900" onClick={() => setIsMobileMenuOpen(true)}>
-          <Menu size={24} />
+        <button 
+          className="md:hidden text-slate-700 dark:text-slate-200 p-2 hover:bg-slate-100 dark:hover:bg-[#1E2128] rounded-xl transition-colors" 
+          onClick={() => setIsMobileMenuOpen(true)}
+          aria-label="Open navigation menu"
+        >
+          <Menu size={22} strokeWidth={1.75} />
         </button>
       </div>
 
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div 
-            key="mobile-menu"
-            initial={{ opacity: 0, x: '100%' }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: '100%' }}
-            className="fixed inset-0 z-[60] bg-white p-6 flex flex-col"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="fixed inset-0 z-[60] bg-[#FAF9F6] dark:bg-[#16181D] p-6 flex flex-col justify-between border-b border-slate-200/70 dark:border-[#2B2F38]"
           >
-            <div className="flex items-center justify-between mb-8">
-              <span className="text-2xl font-display font-bold">CalmNest</span>
-              <button onClick={() => setIsMobileMenuOpen(false)}>
-                <X size={24} />
-              </button>
+            <div>
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 bg-[#5C8397] rounded-xl flex items-center justify-center text-white">
+                    <Sparkles size={16} strokeWidth={1.75} />
+                  </div>
+                  <span className="text-base font-medium tracking-tight text-slate-900 dark:text-slate-100">CalmNest</span>
+                </div>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="text-slate-600 dark:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-[#1E2128] rounded-xl transition-colors">
+                  <X size={22} strokeWidth={1.75} />
+                </button>
+              </div>
+              <div className="flex flex-col gap-5 text-base">
+                <a href="#philosophy" onClick={() => setIsMobileMenuOpen(false)} className="text-slate-700 dark:text-slate-200">Philosophy</a>
+                <a href="#experience" onClick={() => setIsMobileMenuOpen(false)} className="text-slate-700 dark:text-slate-200">Experience</a>
+                <a href="#privacy" onClick={() => setIsMobileMenuOpen(false)} className="text-slate-700 dark:text-slate-200">Privacy & Safety</a>
+                <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="text-[#5C8397] dark:text-[#A1C2D4] font-medium">Sanctuary Workspace</Link>
+              </div>
             </div>
-            <div className="flex flex-col gap-6">
-              <a href="#features" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-medium text-slate-600">Features</a>
-              <a href="#how-it-works" onClick={() => setIsMobileMenuOpen(false)} className="text-xl font-medium text-slate-600">How it Works</a>
-              <Link href="/chat" onClick={() => setIsMobileMenuOpen(false)} className="bg-indigo-600 text-white px-6 py-4 rounded-2xl font-medium w-full text-center">
+            
+            <div className="space-y-3 pt-6 border-t border-slate-200/70 dark:border-[#2B2F38]">
+              <Link href="/chat" onClick={() => setIsMobileMenuOpen(false)} className="btn-primary w-full py-3 text-center">
                 Start Anonymous Chat
+              </Link>
+              <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="btn-secondary w-full py-3 text-center">
+                Enter Dashboard
               </Link>
             </div>
           </motion.div>
@@ -90,187 +108,162 @@ const Navbar = () => {
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col overflow-x-hidden relative">
-      {/* Background Blobs */}
-      <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-indigo-50 rounded-full blur-[120px] opacity-60 -z-10"></div>
-      <div className="absolute bottom-[10%] left-[-5%] w-[500px] h-[500px] bg-emerald-50 rounded-full blur-[100px] opacity-40 -z-10"></div>
-
+    <main className="min-h-screen bg-[#FAF9F6] dark:bg-[#16181D] text-slate-800 dark:text-slate-100 font-sans flex flex-col relative transition-colors duration-300 select-none">
       <Navbar />
 
       {/* Hero Section */}
-      <section className="flex-1 flex flex-col md:flex-row px-6 md:px-12 items-center relative z-10 pt-32 pb-20">
-        <div className="w-full md:w-1/2 md:pr-12 mb-12 md:mb-0">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold mb-6 uppercase tracking-wider">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              24/7 AI-Powered Support
-            </div>
-            <h1 className="text-5xl md:text-[64px] leading-[1.05] font-bold text-slate-900 mb-6">
-              You&apos;re Not Alone.<br/>We&apos;re Here to Listen.
-            </h1>
-            <p className="text-xl text-slate-500 leading-relaxed mb-10 max-w-lg">
-              Anonymous conversations and compassionate AI guidance whenever life feels overwhelming. A safe sanctuary for your mind.
-            </p>
-            <div className="flex items-center gap-4">
-              <Link href="/chat" className="px-8 py-4 bg-indigo-600 text-white rounded-2xl text-lg font-semibold shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95">
-                Begin Your Journey
-              </Link>
-              <button className="px-8 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl text-lg font-semibold hover:bg-slate-50 transition-all active:scale-95">
-                Learn More
-              </button>
-            </div>
-          </motion.div>
-        </div>
-
-        <div className="w-full md:w-1/2 flex flex-col gap-6">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8 }}
-            className="bg-white/70 backdrop-blur-xl border border-white p-8 rounded-[40px] shadow-2xl shadow-slate-200/50"
-          >
-            <div className="flex items-start gap-4 mb-6">
-              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
-                <MessageCircle size={24} />
-              </div>
-              <div>
-                <h3 className="font-bold text-xl text-slate-800">Compassionate AI</h3>
-                <p className="text-slate-500">Empathetic, judgment-free support focused on mood tracking and stress relief.</p>
-              </div>
-            </div>
-            <div className="h-[1px] bg-slate-100 w-full mb-6"></div>
-            <div className="flex items-center justify-between">
-              <div className="flex -space-x-3">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="w-10 h-10 rounded-full border-2 border-white bg-slate-100 overflow-hidden relative">
-                    <Image src={`https://picsum.photos/seed/${i + 20}/100/100`} alt="User" fill referrerPolicy="no-referrer" />
-                  </div>
-                ))}
-                <div className="w-10 h-10 rounded-full border-2 border-white bg-slate-800 flex items-center justify-center text-[10px] text-white font-bold">+1k</div>
-              </div>
-              <span className="text-sm font-medium text-slate-400">142 people chatting now</span>
-            </div>
-          </motion.div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <motion.div 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-emerald-500 p-6 rounded-[32px] text-white shadow-xl shadow-emerald-200"
-            >
-              <h4 className="text-sm font-bold uppercase tracking-widest opacity-80 mb-2">Safety First</h4>
-              <p className="text-2xl font-bold leading-tight">Crisis Intervention Pathways</p>
-            </motion.div>
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-white border border-slate-100 p-6 rounded-[32px] shadow-lg shadow-slate-100"
-            >
-              <h4 className="text-sm font-bold uppercase tracking-widest text-indigo-600 mb-2">Privacy</h4>
-              <p className="text-2xl font-bold leading-tight text-slate-800">100% Anonymous</p>
-            </motion.div>
+      <section className="flex-1 flex flex-col justify-center items-center text-center max-w-4xl mx-auto px-6 pt-36 pb-24 gap-8">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: 'easeOut' }}
+          className="flex flex-col items-center gap-6"
+        >
+          <div className="badge-emerald px-4 py-1.5 shadow-2xs">
+            <Leaf size={14} strokeWidth={1.75} />
+            <span>A Safe, Peaceful Sanctuary for Your Mind</span>
           </div>
-        </div>
+
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-medium text-slate-900 dark:text-slate-100 tracking-tight leading-[1.15] max-w-3xl">
+            You are safe here. <br/>
+            <span className="text-[#5C8397] dark:text-[#A1C2D4] font-normal">Take a quiet breath.</span>
+          </h1>
+
+          <p className="text-base sm:text-lg text-slate-500 dark:text-slate-400 max-w-xl leading-relaxed font-normal">
+            No noise. No judgment. Just a warm, breathable space inspired by mindfulness principles and emotional intelligence where you can step away from stress and find inner calm.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-3.5 pt-2">
+            <Link href="/chat" className="btn-primary px-7 py-3 text-sm shadow-sm">
+              <span>Begin Anonymous Chat</span>
+              <ArrowRight size={16} strokeWidth={1.75} />
+            </Link>
+            <Link href="/dashboard" className="btn-secondary px-7 py-3 text-sm">
+              Explore Dashboard
+            </Link>
+          </div>
+
+          <div className="flex items-center gap-6 pt-6 text-xs text-slate-400 dark:text-slate-500 font-normal">
+            <span className="flex items-center gap-1.5">
+              <Lock size={14} strokeWidth={1.75} className="text-[#6B907B]" />
+              100% Anonymous & Secure
+            </span>
+            <span>•</span>
+            <span>Zero Profiles Required</span>
+            <span>•</span>
+            <span>English, Hindi & Punjabi</span>
+          </div>
+        </motion.div>
+
+        {/* Minimalist Overview Preview Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.15, ease: 'easeOut' }}
+          className="w-full max-w-3xl mt-6 bg-white dark:bg-[#1E2128] border border-slate-200/70 dark:border-[#2B2F38] rounded-2xl p-6 sm:p-8 shadow-xs text-left grid grid-cols-1 sm:grid-cols-3 gap-6"
+        >
+          <div className="space-y-2 border-b sm:border-b-0 sm:border-r border-slate-200/60 dark:border-[#2B2F38] pb-4 sm:pb-0 sm:pr-6">
+            <div className="w-8 h-8 bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] rounded-xl flex items-center justify-center mb-3">
+              <MessageCircle size={18} strokeWidth={1.75} />
+            </div>
+            <h3 className="font-medium text-sm text-slate-900 dark:text-slate-100">Empathetic AI Companion</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Tuned for warm reflections and gentle grounding guidance anytime you need to talk.
+            </p>
+          </div>
+
+          <div className="space-y-2 border-b sm:border-b-0 sm:border-r border-slate-200/60 dark:border-[#2B2F38] pb-4 sm:pb-0 sm:pr-6">
+            <div className="w-8 h-8 bg-[#E6EFEA] dark:bg-[#6B907B]/20 text-[#6B907B] dark:text-[#A8C8B5] rounded-xl flex items-center justify-center mb-3">
+              <Headphones size={18} strokeWidth={1.75} />
+            </div>
+            <h3 className="font-medium text-sm text-slate-900 dark:text-slate-100">Ambient Soundscapes</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Synthesized acoustics including gentle rain, ocean waves, fireplace, and soothing brown noise.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="w-8 h-8 bg-[#EFEAF6] dark:bg-[#8D80A9]/20 text-[#8D80A9] dark:text-[#C5B8DD] rounded-xl flex items-center justify-center mb-3">
+              <Compass size={18} strokeWidth={1.75} />
+            </div>
+            <h3 className="font-medium text-sm text-slate-900 dark:text-slate-100">Breathing Studio</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Interactive visualizer with Box Breathing and 4-7-8 techniques to calm your nervous system.
+            </p>
+          </div>
+        </motion.div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-6 md:px-12">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-display font-bold text-slate-900 mb-4">Comprehensive Care for the Digital Age</h2>
-            <p className="text-slate-600 max-w-2xl mx-auto text-lg">
-              We&apos;ve built a multi-layered support system that prioritizes your wellbeing, privacy, and safety above all else.
+      {/* Philosophy Section */}
+      <section id="philosophy" className="py-20 bg-white/70 dark:bg-[#1E2128]/40 border-y border-slate-200/70 dark:border-[#2B2F38]">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center max-w-xl mx-auto mb-14">
+            <span className="badge-blue mb-2.5">Our Philosophy</span>
+            <h2 className="text-2xl sm:text-3xl font-medium text-slate-900 dark:text-slate-100 tracking-tight">
+              A Place Where Your Mind Can Rest
+            </h2>
+            <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+              Designed with strict minimalism and emotional comfort to lower cognitive load and nurture hope.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
             {[
               {
-                icon: <MessageCircle className="text-indigo-600" />,
-                title: "AI Mental Health Assistant",
-                description: "Empathetic, 24/7 conversations designed to listen and provide emotional support without judgment."
+                icon: <ShieldCheck size={20} strokeWidth={1.75} />,
+                color: "text-[#5C8397] dark:text-[#A1C2D4] bg-[#E8F0F8] dark:bg-[#5C8397]/20",
+                title: "Complete Privacy by Design",
+                desc: "No account or personally identifiable information is ever required. Your emotional journey belongs entirely to you."
               },
               {
-                icon: <Shield className="text-emerald-600" />,
-                title: "Anonymous Chat System",
-                description: "Your identity remains hidden. No profiles, no names, just pure privacy and safety."
+                icon: <Leaf size={20} strokeWidth={1.75} />,
+                color: "text-[#6B907B] dark:text-[#A8C8B5] bg-[#E6EFEA] dark:bg-[#6B907B]/20",
+                title: "Multilingual Cultural Empathy",
+                desc: "Full, native support for English, Hindi (हिन्दी), and Punjabi (ਪੰਜਾਬੀ), honoring cultural nuances in emotional expression."
               },
               {
-                icon: <AlertCircle className="text-red-500" />,
-                title: "Crisis Detection",
-                description: "Advanced logic identifies high-risk situations like self-harm or severe depression instantly."
+                icon: <Heart size={20} strokeWidth={1.75} />,
+                color: "text-[#8D80A9] dark:text-[#C5B8DD] bg-[#EFEAF6] dark:bg-[#8D80A9]/20",
+                title: "Gentle Pacing & Zero Pressure",
+                desc: "No aggressive streaks, no alarming notifications, and no visual clutter. Move entirely at your own comfortable pace."
               }
-            ].map((f, i) => (
-              <motion.div 
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                viewport={{ once: true }}
-                className="card-geometric"
+            ].map((item, idx) => (
+              <div 
+                key={idx}
+                className="card-minimal flex flex-col justify-between"
               >
-                <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-6">
-                  {f.icon}
+                <div>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${item.color}`}>
+                    {item.icon}
+                  </div>
+                  <h3 className="font-medium text-base text-slate-900 dark:text-slate-100 mb-2">{item.title}</h3>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{item.desc}</p>
                 </div>
-                <h3 className="text-xl font-bold mb-3">{f.title}</h3>
-                <p className="text-slate-600 leading-relaxed">{f.description}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Stats Footer Section */}
-      <footer className="h-auto md:h-24 px-6 md:px-12 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between relative z-10 bg-white/50 backdrop-blur-sm py-8 md:py-0">
-        <div className="flex gap-12 mb-6 md:mb-0">
-          <div className="flex flex-col">
-            <span className="text-2xl font-bold text-slate-800">8.2M+</span>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Lives Impacted</span>
+      {/* Footer */}
+      <footer className="py-10 px-6 border-t border-slate-200/70 dark:border-[#2B2F38] text-xs text-slate-500 dark:text-slate-400">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 bg-[#5C8397] rounded-lg flex items-center justify-center text-white">
+              <Sparkles size={12} strokeWidth={1.75} />
+            </div>
+            <span className="font-medium text-slate-800 dark:text-slate-200">CalmNest Sanctuary</span>
           </div>
-          <div className="flex flex-col">
-            <span className="text-2xl font-bold text-slate-800">240+</span>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">NGO Partners</span>
+          <div className="flex gap-6">
+            <Link href="/dashboard" className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors">Workspace</Link>
+            <Link href="/chat" className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors">AI Therapist</Link>
+            <Link href="/meditation" className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors">Breathing Studio</Link>
           </div>
-        </div>
-        <div className="flex items-center gap-8">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Trusted By</span>
-          <div className="flex gap-6 opacity-30 grayscale">
-             {/* Logo Placeholders */}
-             <div className="h-6 w-20 bg-slate-400 rounded"></div>
-             <div className="h-6 w-20 bg-slate-400 rounded"></div>
-             <div className="h-6 w-20 bg-slate-400 rounded"></div>
+          <div>
+            © {new Date().getFullYear()} CalmNest. Dedicated to inner peace.
           </div>
         </div>
       </footer>
-
-      {/* Detailed Footer */}
-      <div className="bg-white border-t border-slate-50 py-12 px-6 md:px-12">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
-              <Heart size={18} fill="currentColor" />
-            </div>
-            <span className="text-xl font-bold">CalmNest</span>
-          </div>
-          <div className="flex gap-8 text-sm font-medium text-slate-500">
-            <Link href="/volunteer" className="hover:text-indigo-600 transition-colors">Partner Login</Link>
-            <a href="#" className="hover:text-indigo-600 transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-indigo-600 transition-colors">Terms of Service</a>
-          </div>
-          <div className="text-sm text-slate-400">
-            © {new Date().getFullYear()} CalmNest.
-          </div>
-        </div>
-      </div>
     </main>
   );
 }

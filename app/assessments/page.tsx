@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   ClipboardCheck,
   CheckCircle2,
@@ -10,18 +10,20 @@ import {
   RotateCcw,
   ShieldCheck,
   HeartPulse,
-  Sparkles
+  Sparkles,
+  Leaf
 } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import { useAuthStore } from '@/store/useAuthStore';
 import { saveAssessmentScore } from '@/lib/firestore-service';
+import { triggerGentleSanctuaryCelebration } from '@/components/SanctuaryConfetti';
 
 type AssessmentType = 'GAD7' | 'PHQ9';
 
 const assessmentsData = {
   GAD7: {
     title: 'GAD-7 Anxiety Screening Suite',
-    desc: 'General Anxiety Disorder 7-item clinical questionnaire designed to measure anxiety symptoms.',
+    desc: 'General Anxiety Disorder 7-item clinical questionnaire designed to gently measure anxiety symptoms.',
     questions: [
       'Feeling nervous, anxious or on edge over the last 2 weeks?',
       'Not being able to stop or control worrying?',
@@ -33,8 +35,8 @@ const assessmentsData = {
     ]
   },
   PHQ9: {
-    title: 'PHQ-9 Depression Assessment',
-    desc: 'Patient Health Questionnaire 9-item screening tool used globally to evaluate mood and energy levels.',
+    title: 'PHQ-9 Mood & Energy Assessment',
+    desc: 'Patient Health Questionnaire 9-item screening tool used globally to gently evaluate mood, energy, and hope levels.',
     questions: [
       'Little interest or pleasure in doing things over the last 2 weeks?',
       'Feeling down, depressed, or hopeless?',
@@ -81,21 +83,22 @@ export default function AssessmentsPage() {
 
   const getInterpretation = (score: number, type: AssessmentType) => {
     if (type === 'GAD7') {
-      if (score <= 4) return { level: 'Minimal Anxiety', color: 'text-emerald-700 bg-emerald-50 border-emerald-200', advice: 'Your score suggests minimal anxiety symptoms. Continue your positive daily wellness routines!' };
-      if (score <= 9) return { level: 'Mild Anxiety', color: 'text-blue-700 bg-blue-50 border-blue-200', advice: 'Mild anxiety noted. We recommend box breathing exercises and journaling twice a week.' };
-      if (score <= 14) return { level: 'Moderate Anxiety', color: 'text-amber-700 bg-amber-50 border-amber-200', advice: 'Moderate anxiety symptoms detected. Consider initiating regular check-ins with our 24/7 AI Therapist or reaching out to a counselor.' };
-      return { level: 'Severe Anxiety', color: 'text-rose-700 bg-rose-50 border-rose-200', advice: 'High anxiety levels indicated. Please prioritize self-care and consider speaking with a licensed mental health professional.' };
+      if (score <= 4) return { level: 'Minimal Anxiety', color: 'text-[#4A725D] dark:text-[#A8C8B5] bg-[#E6EFEA] dark:bg-[#6B907B]/20 border-[#6B907B]/40', advice: 'Your score suggests minimal anxiety symptoms. Continue your gentle daily wellness routines!' };
+      if (score <= 9) return { level: 'Mild Anxiety', color: 'text-[#436475] dark:text-[#A1C2D4] bg-[#E8F0F8] dark:bg-[#5C8397]/20 border-[#8DA9B7]/40', advice: 'Mild anxiety noted. We recommend lotus box breathing exercises and journaling twice a week.' };
+      if (score <= 14) return { level: 'Moderate Anxiety', color: 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800', advice: 'Moderate anxiety symptoms detected. Consider initiating regular check-ins with our 24/7 AI Therapist.' };
+      return { level: 'Elevated Anxiety', color: 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800', advice: 'High anxiety levels indicated. Please prioritize gentle self-care and consider speaking with a licensed mental health professional or counselor.' };
     } else {
-      if (score <= 4) return { level: 'Minimal Depression', color: 'text-emerald-700 bg-emerald-50 border-emerald-200', advice: 'Your mood appears stable and positive overall. Maintain your healthy sleep and exercise habits!' };
-      if (score <= 9) return { level: 'Mild Depression', color: 'text-blue-700 bg-blue-50 border-blue-200', advice: 'Some mild depressive symptoms reported. Engaging in daily physical walks and social connection can help.' };
-      if (score <= 14) return { level: 'Moderate Depression', color: 'text-amber-700 bg-amber-50 border-amber-200', advice: 'Moderate symptoms observed. Our AI Therapist can help structure daily behavioral activation goals.' };
-      return { level: 'Severe Depression', color: 'text-rose-700 bg-rose-50 border-rose-200', advice: 'Please remember you do not have to carry this alone. Reach out to our volunteer peer counselors or a healthcare provider today.' };
+      if (score <= 4) return { level: 'Minimal Symptoms', color: 'text-[#4A725D] dark:text-[#A8C8B5] bg-[#E6EFEA] dark:bg-[#6B907B]/20 border-[#6B907B]/40', advice: 'Your mood appears stable and positive overall. Maintain your healthy sleep and anchor habits!' };
+      if (score <= 9) return { level: 'Mild Symptoms', color: 'text-[#436475] dark:text-[#A1C2D4] bg-[#E8F0F8] dark:bg-[#5C8397]/20 border-[#8DA9B7]/40', advice: 'Some mild fatigue or low mood reported. Engaging in short nature walks and social check-ins can help.' };
+      if (score <= 14) return { level: 'Moderate Symptoms', color: 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800', advice: 'Moderate symptoms observed. Our AI Therapist can help structure gentle daily behavioral anchor goals.' };
+      return { level: 'Elevated Symptoms', color: 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800', advice: 'Please remember you do not have to carry heavy feelings alone. Free, confidential support and peer resources are available right here.' };
     }
   };
 
   const handleSubmitScore = async () => {
     if (!activeType || !user?.id) {
       setIsCompleted(true);
+      triggerGentleSanctuaryCelebration('petals');
       return;
     }
     setIsSaving(true);
@@ -110,21 +113,27 @@ export default function AssessmentsPage() {
     });
     setIsSaving(false);
     setIsCompleted(true);
+    triggerGentleSanctuaryCelebration('petals');
   };
 
   const allAnswered = answers.every((a) => a >= 0);
 
   return (
     <AppSidebar>
-      <div className="p-4 md:p-8 space-y-8 max-w-5xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-5xl mx-auto bg-[#FAF9F6] dark:bg-[#16181D] min-h-screen transition-colors duration-300 select-none">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/60 dark:border-[#2B2F38]">
           <div>
-            <div className="flex items-center gap-2 text-indigo-600 text-xs font-bold uppercase tracking-wider mb-1">
-              <ClipboardCheck size={16} />
-              <span>Evidence-Based Mental Wellness Screening</span>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="badge-emerald text-[11px] py-0.5 px-2.5 font-mono flex items-center gap-1.5">
+                <Leaf size={12} /> Confidential Screening
+              </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold font-display text-slate-900">Clinical-Grade Self Assessments</h1>
-            <p className="text-sm text-slate-500 mt-1">Confidential screening tools based on international psychiatric guidelines</p>
+            <h1 className="text-2xl sm:text-3xl font-medium tracking-tight text-slate-900 dark:text-slate-100">
+              Self-Assessment Screenings
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Evidence-based screening questionnaires designed with warmth, complete privacy, and clear insights.
+            </p>
           </div>
         </div>
 
@@ -135,61 +144,61 @@ export default function AssessmentsPage() {
               return (
                 <div
                   key={type}
-                  className="bg-white border border-slate-200/80 hover:border-indigo-300 rounded-3xl p-8 shadow-sm flex flex-col justify-between group transition-all"
+                  className="card-minimal flex flex-col justify-between group hover:border-[#5C8397]/40 transition-all"
                 >
                   <div>
-                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-6">
-                      <HeartPulse size={26} />
+                    <div className="w-10 h-10 bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] rounded-xl flex items-center justify-center mb-4 shadow-2xs">
+                      <HeartPulse size={20} strokeWidth={1.75} />
                     </div>
-                    <h3 className="font-bold text-xl text-slate-900 font-display mb-2 group-hover:text-indigo-600 transition-colors">
+                    <h3 className="font-medium text-lg text-slate-900 dark:text-slate-100 mb-2 group-hover:text-[#5C8397] dark:group-hover:text-[#A1C2D4] transition-colors">
                       {item.title}
                     </h3>
-                    <p className="text-sm text-slate-600 leading-relaxed mb-6">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-6 font-normal">
                       {item.desc}
                     </p>
                   </div>
                   <button
                     onClick={() => startTest(type)}
-                    className="w-full py-4 bg-slate-900 group-hover:bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all"
+                    className="btn-primary w-full py-3 text-xs flex items-center justify-center gap-2"
                   >
                     <span>Begin Questionnaire</span>
-                    <ArrowRight size={16} />
+                    <ArrowRight size={15} strokeWidth={1.75} />
                   </button>
                 </div>
               );
             })}
           </div>
         ) : !isCompleted ? (
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-10 shadow-sm space-y-8">
-            <div className="flex items-center justify-between pb-6 border-b border-slate-100">
+          <div className="card-minimal space-y-6">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200/60 dark:border-[#2B2F38]">
               <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-indigo-600">{activeType} Assessment</span>
-                <h2 className="text-xl font-bold font-display text-slate-900 mt-0.5">{assessmentsData[activeType].title}</h2>
+                <span className="text-[11px] font-mono text-[#5C8397] dark:text-[#A1C2D4]">{activeType} Assessment</span>
+                <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mt-0.5">{assessmentsData[activeType].title}</h2>
               </div>
               <button
                 onClick={() => setActiveType(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs"
+                className="btn-secondary px-3.5 py-1.5 text-xs"
               >
                 Exit Test
               </button>
             </div>
 
-            <div className="space-y-8">
+            <div className="space-y-6">
               {assessmentsData[activeType].questions.map((question, qIdx) => (
-                <div key={qIdx} className="space-y-3 pb-6 border-b border-slate-100 last:border-0">
-                  <h4 className="font-bold text-sm text-slate-900">
+                <div key={qIdx} className="space-y-2.5 pb-5 border-b border-slate-200/60 dark:border-[#2B2F38] last:border-0">
+                  <h4 className="font-medium text-xs sm:text-sm text-slate-900 dark:text-slate-100">
                     {qIdx + 1}. {question}
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                     {scaleOptions.map((opt) => (
                       <button
                         key={opt.val}
                         type="button"
                         onClick={() => handleSelectAnswer(qIdx, opt.val)}
-                        className={`p-3 rounded-2xl border text-left text-xs font-semibold transition-all ${
+                        className={`p-3 rounded-xl border text-left text-xs font-normal transition-all ${
                           answers[qIdx] === opt.val
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-300'
-                            : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100 text-slate-700'
+                            ? 'bg-[#5C8397] text-white border-[#5C8397] shadow-2xs font-medium'
+                            : 'bg-slate-50 dark:bg-[#16181D] border-slate-200/70 dark:border-[#2B2F38] hover:bg-slate-100 dark:hover:bg-[#252932] text-slate-700 dark:text-slate-300'
                         }`}
                       >
                         {opt.label}
@@ -200,55 +209,55 @@ export default function AssessmentsPage() {
               ))}
             </div>
 
-            <div className="pt-4 flex justify-end">
+            <div className="pt-2 flex justify-end">
               <button
                 disabled={!allAnswered || isSaving}
                 onClick={handleSubmitScore}
-                className="px-10 py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 text-white font-bold text-sm rounded-2xl shadow-xl shadow-indigo-600/20 transition-all flex items-center gap-2"
+                className="btn-primary px-8 py-3 text-xs flex items-center gap-2"
               >
                 <span>Complete & View Score</span>
-                <CheckCircle2 size={18} />
+                <CheckCircle2 size={16} strokeWidth={1.75} />
               </button>
             </div>
           </div>
         ) : (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white border border-slate-200 rounded-3xl p-8 md:p-12 shadow-xl text-center space-y-6 max-w-2xl mx-auto"
+            className="card-minimal text-center space-y-5 max-w-xl mx-auto py-10"
           >
-            <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mx-auto shadow-sm">
-              <ShieldCheck size={40} />
+            <div className="w-16 h-16 bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] rounded-2xl flex items-center justify-center mx-auto shadow-2xs">
+              <ShieldCheck size={32} strokeWidth={1.75} />
             </div>
 
             <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Total Score Calculation</span>
-              <h2 className="text-4xl font-black font-display text-slate-900">
-                {calculateScore()} / {activeType === 'GAD7' ? 21 : 27}
+              <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500">Screening Result Summary</span>
+              <h2 className="text-3xl font-medium text-slate-900 dark:text-slate-100">
+                Score: {calculateScore()} / {activeType === 'GAD7' ? 21 : 27}
               </h2>
             </div>
 
             {(() => {
               const res = getInterpretation(calculateScore(), activeType);
               return (
-                <div className={`p-6 rounded-2xl border ${res.color} text-left space-y-2`}>
-                  <h4 className="font-bold text-base">{res.level}</h4>
-                  <p className="text-xs leading-relaxed opacity-90">{res.advice}</p>
+                <div className={`p-5 rounded-xl border ${res.color} text-left space-y-1.5`}>
+                  <h4 className="font-medium text-sm">{res.level}</h4>
+                  <p className="text-xs leading-relaxed font-normal opacity-90">{res.advice}</p>
                 </div>
               );
             })()}
 
-            <div className="pt-4 flex items-center justify-center gap-4">
+            <div className="pt-4 flex items-center justify-center gap-3">
               <button
                 onClick={() => startTest(activeType)}
-                className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all"
+                className="btn-secondary px-5 py-2.5 text-xs flex items-center gap-1.5"
               >
-                <RotateCcw size={14} />
-                <span>Retake Assessment</span>
+                <RotateCcw size={14} strokeWidth={1.75} />
+                <span>Retake Screening</span>
               </button>
               <button
                 onClick={() => setActiveType(null)}
-                className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs shadow-md transition-all"
+                className="btn-primary px-6 py-2.5 text-xs"
               >
                 Return to Screeners
               </button>

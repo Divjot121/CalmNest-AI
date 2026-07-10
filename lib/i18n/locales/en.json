@@ -1,0 +1,106 @@
+{
+  "welcome": {
+    "title": "Welcome back.",
+    "subtitle": "Take a deep breath. You are in a safe, quiet space.",
+    "checkIn": "Let's check in with yourself today.",
+    "enterSanctuary": "Enter Your Sanctuary",
+    "chooseLanguage": "Choose Your Language",
+    "selectLanguageSubtitle": "Select the language that feels most comfortable and like home to you.",
+    "continue": "Continue to Sanctuary",
+    "dailyAffirmation": "You are doing your best, and right now, that is more than enough."
+  },
+  "nav": {
+    "sanctuary": "Sanctuary",
+    "chat": "AI Companion",
+    "breathing": "Breathing",
+    "ambience": "Soundscapes",
+    "dashboard": "Check-in",
+    "journal": "Reflections",
+    "mood": "Mood Log",
+    "habits": "Gentle Habits",
+    "settings": "Settings"
+  },
+  "chat": {
+    "placeholder": "Gently share what's on your mind today...",
+    "send": "Send",
+    "thinking": "Taking a calming breath...",
+    "crisisAlert": "We care deeply about your safety. If you are feeling overwhelmed or in crisis, please connect with immediate support:",
+    "crisisHelpline": "India KIRAN Helpline: 1800-599-0019 | Vandrevala Foundation: 9999 666 555",
+    "quickActionsTitle": "Gently explore what you might need right now:",
+    "quickActions": {
+      "anxious": "I feel anxious right now",
+      "overwhelmed": "I'm feeling overwhelmed",
+      "sleep": "I can't seem to sleep",
+      "motivation": "I need gentle motivation",
+      "vent": "I just want a safe space to vent",
+      "calm": "Help me calm down gently",
+      "win": "Celebrate a tiny win with me",
+      "gratitude": "Let's practice gratitude together"
+    },
+    "errorReply": "I'm right here with you. Let's take a slow, gentle breath together."
+  },
+  "breathing": {
+    "title": "Breathing Sanctuary",
+    "subtitle": "Follow the gentle circle. Let every exhale release a little tension.",
+    "inhale": "Breathe in slowly...",
+    "hold": "Hold gently...",
+    "exhale": "Release slowly...",
+    "techniques": {
+      "box": "Box Breathing (4-4-4-4)",
+      "478": "Relaxation (4-7-8)",
+      "deep": "Deep Grounding (5-5)",
+      "relaxation": "Calm Rhythm (4-6)"
+    },
+    "start": "Begin Breathing",
+    "pause": "Pause Gently",
+    "vibrationCue": "Vibration guidance active on supported devices"
+  },
+  "ambience": {
+    "title": "Nature Soundscapes",
+    "subtitle": "Surround yourself with soothing sounds of nature.",
+    "rain": "Gentle Rain",
+    "ocean": "Ocean Waves",
+    "forest": "Forest & Birds",
+    "fireplace": "Warm Fireplace",
+    "wind": "Soft Mountain Wind",
+    "piano": "Soft Sanctuary Piano",
+    "brownNoise": "Soothing Brown Noise",
+    "timer": "Sleep Timer",
+    "timerOff": "Continuous Loop",
+    "timer15": "15 Minutes",
+    "timer30": "30 Minutes",
+    "timer60": "60 Minutes"
+  },
+  "dashboard": {
+    "title": "Emotional Check-in",
+    "subtitle": "How are you feeling in this moment? There are no wrong answers here.",
+    "moodLabel": "Your Mood Today",
+    "energyLabel": "Energy Level",
+    "sleepLabel": "Sleep Quality",
+    "stressLabel": "Stress Level",
+    "gratitudePrompt": "What is one small, warm thing you feel grateful for today?",
+    "logCheckIn": "Save Check-in",
+    "recentCheckIns": "Your Recent Reflections",
+    "calmCorner": "Your Calm Corner",
+    "virtualPlant": "Sanctuary Sprout",
+    "plantGrowth": "Growing gently with every act of self-care you take."
+  },
+  "emptyStates": {
+    "journal": "Your story begins here. This safe space is waiting for whatever thoughts you wish to release.",
+    "moods": "Every journey starts with a single step. Log how you feel today whenever you are ready.",
+    "habits": "Habits grow like seedlings—slowly and with kindness. Add a gentle habit when you feel ready."
+  },
+  "loading": {
+    "breath": "One gentle moment...",
+    "preparing": "Preparing your safe space...",
+    "calming": "Taking a calming breath..."
+  },
+  "settings": {
+    "title": "Sanctuary Settings",
+    "language": "Sanctuary Language",
+    "theme": "Nighttime Mode",
+    "haptics": "Gentle Vibration Cues",
+    "sound": "Subtle UI Sound Effects",
+    "saved": "Preferences updated gently."
+  }
+}

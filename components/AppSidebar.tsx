@@ -3,9 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import {
-  Heart,
   LayoutDashboard,
   MessageSquareHeart,
   BookOpen,
@@ -15,98 +14,100 @@ import {
   ClipboardCheck,
   ShieldAlert,
   LogOut,
-  Flame,
   User,
   Menu,
   X,
-  Settings
+  Settings,
+  Sparkles
 } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
-
-interface NavItem {
-  name: string;
-  href: string;
-  icon: React.ReactNode;
-  badge?: string;
-}
-
-const navItems: NavItem[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={20} /> },
-  { name: 'AI Therapist', href: '/chat', icon: <MessageSquareHeart size={20} />, badge: '24/7' },
-  { name: 'Mood Tracker', href: '/mood', icon: <SmilePlus size={20} /> },
-  { name: 'Journal & Notes', href: '/journal', icon: <BookOpen size={20} /> },
-  { name: 'Meditation Studio', href: '/meditation', icon: <Compass size={20} /> },
-  { name: 'Habits & Routine', href: '/habits', icon: <ListTodo size={20} /> },
-  { name: 'Self Assessment', href: '/assessments', icon: <ClipboardCheck size={20} /> },
-];
+import { useSanctuaryTranslation } from '@/lib/i18n/useSanctuaryTranslation';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import SettingsModal from '@/components/SettingsModal';
 
 export default function AppSidebar({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, checkAuth, logout, isLoading } = useAuthStore();
+  const { t } = useSanctuaryTranslation();
+  const { user, checkAuth, logout } = useAuthStore();
+  const { openSettings, initDomStyles } = useSettingsStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showSosModal, setShowSosModal] = useState(false);
 
   useEffect(() => {
     checkAuth();
-  }, [checkAuth]);
+    initDomStyles();
+  }, [checkAuth, initDomStyles]);
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'MODERATOR';
 
+  const navItems = [
+    { name: t('nav.sanctuary') || 'Sanctuary', href: '/dashboard', icon: <LayoutDashboard size={18} strokeWidth={1.75} /> },
+    { name: t('nav.chat') || 'AI Therapist', href: '/chat', icon: <MessageSquareHeart size={18} strokeWidth={1.75} />, badge: '24/7' },
+    { name: t('nav.mood') || 'Mood Tracker', href: '/mood', icon: <SmilePlus size={18} strokeWidth={1.75} /> },
+    { name: t('nav.journal') || 'Journal & Notes', href: '/journal', icon: <BookOpen size={18} strokeWidth={1.75} /> },
+    { name: t('breathing.title') || 'Meditation Studio', href: '/meditation', icon: <Compass size={18} strokeWidth={1.75} /> },
+    { name: t('nav.habits') || 'Habits & Routine', href: '/habits', icon: <ListTodo size={18} strokeWidth={1.75} /> },
+    { name: 'Self Assessment', href: '/assessments', icon: <ClipboardCheck size={18} strokeWidth={1.75} /> },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans text-slate-900">
+    <div className="min-h-screen bg-[#FAF9F6] dark:bg-[#16181D] flex flex-col md:flex-row font-sans text-slate-800 dark:text-slate-100 transition-colors duration-300">
       {/* Mobile Header */}
-      <header className="md:hidden glass border-b border-slate-200/80 px-4 py-3 flex items-center justify-between sticky top-0 z-40 bg-white/80 backdrop-blur-md">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-200">
-            <Heart size={18} fill="currentColor" />
+      <header className="md:hidden bg-white/90 dark:bg-[#1E2128]/90 backdrop-blur-md border-b border-slate-200/70 dark:border-[#2B2F38] px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+        <Link href="/dashboard" className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-[#5C8397] rounded-xl flex items-center justify-center text-white shadow-2xs">
+            <Sparkles size={16} />
           </div>
-          <span className="font-display font-bold text-lg text-slate-900">CalmNest</span>
+          <span className="font-medium tracking-tight text-base text-slate-900 dark:text-slate-100">CalmNest</span>
         </Link>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => openSettings()}
+            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#252932] rounded-xl transition-colors"
+            title="Sanctuary Settings"
+          >
+            <Settings size={18} />
+          </button>
+          <button
             onClick={() => setShowSosModal(true)}
-            className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-sm transition-all animate-pulse"
+            className="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/80 text-xs font-medium rounded-xl flex items-center gap-1.5 transition-all"
           >
             <ShieldAlert size={14} />
             <span>SOS</span>
           </button>
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#252932] rounded-xl transition-colors"
+            aria-label="Toggle menu"
           >
-            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </header>
 
-      {/* Mobile Overlay Menu */}
+      {/* Mobile Navigation Drawer */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="md:hidden fixed inset-0 top-14 z-50 bg-white p-6 flex flex-col justify-between overflow-y-auto"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden bg-white dark:bg-[#16181D] border-b border-slate-200/70 dark:border-[#2B2F38] overflow-hidden z-30"
           >
-            <div className="space-y-6">
-              <div className="flex items-center justify-between bg-indigo-50/70 p-4 rounded-2xl border border-indigo-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold">
-                    <User size={20} />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-sm text-slate-900">{user?.name || 'CalmNest User'}</h4>
-                    <p className="text-xs text-slate-500 truncate max-w-[180px]">{user?.email || 'Anonymous Session'}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 bg-amber-50 text-amber-600 px-2.5 py-1 rounded-xl text-xs font-bold border border-amber-200">
-                  <Flame size={14} fill="currentColor" />
-                  <span>{user?.streak || 1}d</span>
-                </div>
-              </div>
+            <div className="p-4 space-y-1">
+              <button
+                onClick={() => {
+                  setShowSosModal(true);
+                  setMobileOpen(false);
+                }}
+                className="w-full mb-3 py-2.5 px-3.5 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 rounded-xl font-medium text-xs flex items-center gap-2 transition-colors"
+              >
+                <ShieldAlert size={16} />
+                <span>Crisis Helpline & SOS</span>
+              </button>
 
-              <nav className="space-y-1.5">
+              <nav className="space-y-1">
                 {navItems.map((item) => {
                   const active = pathname === item.href;
                   return (
@@ -114,10 +115,10 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
                       key={item.href}
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
-                      className={`flex items-center justify-between px-4 py-3.5 rounded-2xl text-sm font-medium transition-all ${
+                      className={`flex items-center justify-between px-3.5 py-3 rounded-xl text-sm transition-all duration-150 ${
                         active
-                          ? 'bg-indigo-600 text-white font-semibold shadow-lg shadow-indigo-600/20'
-                          : 'text-slate-600 hover:bg-slate-100'
+                          ? 'bg-[#5C8397]/12 dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] font-medium'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-[#1E2128]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -125,8 +126,8 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
                         <span>{item.name}</span>
                       </div>
                       {item.badge && (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          active ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-600'
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                          active ? 'bg-[#5C8397] text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                         }`}>
                           {item.badge}
                         </span>
@@ -134,30 +135,28 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
                     </Link>
                   );
                 })}
-                {isAdmin && (
-                  <Link
-                    href="/admin"
-                    onClick={() => setMobileOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-medium transition-all ${
-                      pathname === '/admin' ? 'bg-purple-600 text-white shadow-lg' : 'text-purple-600 hover:bg-purple-50'
-                    }`}
-                  >
-                    <Settings size={20} />
-                    <span>Admin Command Center</span>
-                  </Link>
-                )}
+                <button
+                  onClick={() => {
+                    setMobileOpen(false);
+                    openSettings();
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-[#1E2128] transition-all"
+                >
+                  <Settings size={18} strokeWidth={1.75} />
+                  <span>Preferences & Settings</span>
+                </button>
               </nav>
             </div>
 
-            <div className="pt-6 border-t border-slate-200 flex flex-col gap-3">
+            <div className="pt-4 border-t border-slate-200/70 dark:border-[#2B2F38]">
               <button
                 onClick={() => {
                   setMobileOpen(false);
                   logout();
                 }}
-                className="w-full py-3.5 bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-600 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 transition-all"
+                className="w-full py-3 bg-white dark:bg-[#1E2128] hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-300 border border-slate-200/70 dark:border-[#2B2F38] rounded-xl font-normal text-sm flex items-center justify-center gap-2 transition-all"
               >
-                <LogOut size={18} />
+                <LogOut size={16} strokeWidth={1.75} />
                 <span>Sign Out</span>
               </button>
             </div>
@@ -165,30 +164,30 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
         )}
       </AnimatePresence>
 
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-64 bg-white border-r border-slate-200/80 flex-col justify-between p-5 sticky top-0 h-screen shrink-0 z-30">
+      {/* Desktop Sidebar (Inspired by Linear / Apple HIG) */}
+      <aside className="hidden md:flex w-64 bg-white dark:bg-[#16181D] border-r border-slate-200/70 dark:border-[#2B2F38] flex-col justify-between p-4 sticky top-0 h-screen shrink-0 z-30 select-none">
         <div>
           {/* Brand */}
-          <Link href="/dashboard" className="flex items-center gap-2.5 px-2 mb-8">
-            <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-              <Heart size={20} fill="currentColor" />
+          <Link href="/dashboard" className="flex items-center gap-3 px-2 mb-6 group">
+            <div className="w-9 h-9 bg-[#5C8397] rounded-xl flex items-center justify-center text-white shadow-2xs group-hover:scale-105 transition-all duration-200">
+              <Sparkles size={18} />
             </div>
             <div>
-              <span className="font-display font-bold text-xl text-slate-900 leading-none">CalmNest</span>
-              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mt-0.5">Enterprise Wellness</p>
+              <span className="font-medium tracking-tight text-base text-slate-900 dark:text-slate-100 leading-none">CalmNest</span>
+              <p className="text-[11px] font-normal text-[#6B907B] dark:text-[#A8C8B5] mt-0.5">Sanctuary Workspace</p>
             </div>
           </Link>
 
-          {/* SOS Button */}
+          {/* SOS Crisis Button */}
           <button
             onClick={() => setShowSosModal(true)}
-            className="w-full mb-6 py-3 px-4 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-500/20 transition-all group"
+            className="w-full mb-5 py-2.5 px-3.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/80 rounded-xl font-medium text-xs flex items-center justify-center gap-2 transition-all duration-200 group"
           >
-            <ShieldAlert size={16} className="group-hover:scale-110 transition-transform" />
-            <span>CRISIS SOS HELPLINE</span>
+            <ShieldAlert size={15} strokeWidth={1.75} className="group-hover:scale-105 transition-transform" />
+            <span>Crisis Helpline & SOS</span>
           </button>
 
-          {/* Nav */}
+          {/* Navigation Items */}
           <nav className="space-y-1">
             {navItems.map((item) => {
               const active = pathname === item.href;
@@ -196,10 +195,10 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center justify-between px-3.5 py-3 rounded-2xl text-sm font-medium transition-all ${
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all duration-150 ${
                     active
-                      ? 'bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-600/20'
-                      : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                      ? 'bg-[#5C8397]/12 dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] font-medium'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-[#1E2128] hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -207,8 +206,8 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
                     <span>{item.name}</span>
                   </div>
                   {item.badge && (
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      active ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-600'
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                      active ? 'bg-[#5C8397] text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                     }`}>
                       {item.badge}
                     </span>
@@ -216,14 +215,21 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
                 </Link>
               );
             })}
+            <button
+              onClick={() => openSettings()}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-[#1E2128] hover:text-slate-900 dark:hover:text-white transition-all text-left"
+            >
+              <Settings size={18} strokeWidth={1.75} />
+              <span>Preferences & Settings</span>
+            </button>
             {isAdmin && (
               <Link
                 href="/admin"
-                className={`flex items-center gap-3 px-3.5 py-3 rounded-2xl text-sm font-medium transition-all mt-4 ${
-                  pathname === '/admin' ? 'bg-purple-600 text-white shadow-md' : 'text-purple-600 hover:bg-purple-50'
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-4 ${
+                  pathname === '/admin' ? 'bg-[#8D80A9]/15 text-[#8D80A9] font-medium' : 'text-slate-500 hover:bg-slate-100/70 dark:hover:bg-[#1E2128]'
                 }`}
               >
-                <Settings size={20} />
+                <Settings size={18} strokeWidth={1.75} />
                 <span>Admin Panel</span>
               </Link>
             )}
@@ -231,42 +237,49 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
         </div>
 
         {/* User Card */}
-        <div className="pt-4 border-t border-slate-100">
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/60 mb-3">
-            <div className="flex items-center justify-between mb-2">
+        <div className="pt-4 border-t border-slate-200/70 dark:border-[#2B2F38]">
+          <div className="bg-slate-50/80 dark:bg-[#1E2128]/70 p-3 rounded-xl border border-slate-200/60 dark:border-[#2B2F38] mb-2.5">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5 overflow-hidden">
-                <div className="w-9 h-9 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-sm shrink-0">
-                  <User size={18} />
+                <div className="w-8 h-8 bg-[#5C8397]/15 dark:bg-[#5C8397]/25 text-[#5C8397] dark:text-[#A1C2D4] rounded-lg flex items-center justify-center font-medium text-sm shrink-0">
+                  <User size={16} />
                 </div>
                 <div className="truncate">
-                  <h4 className="font-bold text-xs text-slate-900 truncate">{user?.name || 'CalmNest User'}</h4>
-                  <p className="text-[10px] text-slate-500 truncate">{user?.email || 'Guest Mode'}</p>
+                  <h4 className="font-medium text-xs text-slate-800 dark:text-slate-100 truncate">{user?.name || 'Sanctuary Friend'}</h4>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{user?.email || 'Anonymous Session'}</p>
                 </div>
               </div>
+              <button
+                onClick={() => openSettings('privacy')}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-colors"
+                title="Manage Account Identity"
+              >
+                <Settings size={14} />
+              </button>
             </div>
-            <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-xs">
-              <span className="text-slate-500 font-medium">Wellness Streak</span>
-              <div className="flex items-center gap-1 font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
-                <Flame size={13} fill="currentColor" />
-                <span>{user?.streak || 1} Days</span>
-              </div>
+            <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-200/60 dark:border-[#2B2F38] text-[11px]">
+              <span className="text-slate-500 dark:text-slate-400">Streak</span>
+              <span className="font-mono text-[#6B907B] dark:text-[#A8C8B5] font-medium">{user?.streak || 1} Days Active</span>
             </div>
           </div>
 
           <button
             onClick={logout}
-            className="w-full py-2.5 px-3 bg-white hover:bg-red-50 text-slate-600 hover:text-red-600 border border-slate-200 hover:border-red-200 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition-all"
+            className="w-full py-2 px-3 bg-white dark:bg-[#1E2128] hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-300 border border-slate-200/70 dark:border-[#2B2F38] rounded-xl font-normal text-xs flex items-center justify-center gap-2 transition-all duration-150"
           >
-            <LogOut size={15} />
+            <LogOut size={14} strokeWidth={1.75} />
             <span>Sign Out</span>
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto min-h-screen">
         {children}
       </main>
+
+      {/* Settings Dialog Modal */}
+      <SettingsModal />
 
       {/* SOS Crisis Modal */}
       <AnimatePresence>
@@ -275,59 +288,71 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/70 backdrop-blur-md"
+            onClick={() => setShowSosModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white max-w-lg w-full rounded-3xl p-6 md:p-8 shadow-2xl border border-red-100"
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-[#1E2128] border border-slate-200/80 dark:border-[#2B2F38] rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative"
             >
-              <div className="w-14 h-14 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto">
-                <ShieldAlert size={32} />
+              <button
+                onClick={() => setShowSosModal(false)}
+                className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition-colors"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 flex items-center justify-center text-rose-600 dark:text-rose-400 mb-5 shadow-2xs">
+                <ShieldAlert size={24} strokeWidth={1.75} />
               </div>
-              <h2 className="text-2xl font-bold text-center text-slate-900 mb-2 font-display">Immediate Emergency Helplines</h2>
-              <p className="text-sm text-center text-slate-600 mb-6">
-                You are not alone. Free, confidential, professional support is available right now 24/7.
+
+              <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
+                Immediate Crisis Support
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-6">
+                You are not alone. If you are experiencing overwhelming distress, emotional pain, or thoughts of self-harm, please reach out to compassionate human helplines available 24/7 right now.
               </p>
 
-              <div className="space-y-3 mb-8">
+              <div className="space-y-3 mb-6">
                 <a
-                  href="tel:988"
-                  className="flex items-center justify-between p-4 bg-red-50 hover:bg-red-100 border border-red-200 rounded-2xl transition-all group"
+                  href="tel:18005990019"
+                  className="flex items-center justify-between p-4 bg-slate-50/80 dark:bg-[#16181D] hover:bg-rose-50/50 dark:hover:bg-rose-950/30 border border-slate-200/80 dark:border-[#2B2F38] rounded-xl transition-all group"
                 >
                   <div>
-                    <h4 className="font-bold text-red-900">National Suicide & Crisis Lifeline (US & Canada)</h4>
-                    <p className="text-xs text-red-700 mt-0.5">Call or Text 24 hours a day</p>
+                    <h4 className="font-medium text-slate-900 dark:text-slate-100 text-sm">🇮🇳 KIRAN National Helpline (India)</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">24/7 mental health rehabilitation helpline</p>
                   </div>
-                  <span className="px-4 py-2 bg-red-600 group-hover:bg-red-700 text-white rounded-xl font-bold text-sm shadow-md">
+                  <span className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-medium text-xs shadow-2xs transition-colors">
+                    Call 1800-599-0019
+                  </span>
+                </a>
+
+                <a
+                  href="tel:988"
+                  className="flex items-center justify-between p-4 bg-slate-50/80 dark:bg-[#16181D] hover:bg-slate-100 dark:hover:bg-[#252932] border border-slate-200/80 dark:border-[#2B2F38] rounded-xl transition-all group"
+                >
+                  <div>
+                    <h4 className="font-medium text-slate-900 dark:text-slate-100 text-sm">🇺🇸 Suicide & Crisis Lifeline (USA & Canada)</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Free, confidential 24/7 crisis support</p>
+                  </div>
+                  <span className="px-3.5 py-1.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rounded-lg font-medium text-xs shadow-2xs transition-colors">
                     Call 988
                   </span>
                 </a>
 
                 <a
                   href="tel:112"
-                  className="flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl transition-all group"
+                  className="flex items-center justify-between p-4 bg-slate-50/80 dark:bg-[#16181D] hover:bg-slate-100 dark:hover:bg-[#252932] border border-slate-200/80 dark:border-[#2B2F38] rounded-xl transition-all group"
                 >
                   <div>
-                    <h4 className="font-bold text-slate-900">Emergency Services (Europe & International)</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">Immediate medical & safety response</p>
+                    <h4 className="font-medium text-slate-900 dark:text-slate-100 text-sm">🌍 Global Emergency Services (International)</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Immediate medical & safety intervention</p>
                   </div>
-                  <span className="px-4 py-2 bg-slate-900 group-hover:bg-slate-800 text-white rounded-xl font-bold text-sm shadow-md">
+                  <span className="px-3.5 py-1.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rounded-lg font-medium text-xs shadow-2xs transition-colors">
                     Call 112
-                  </span>
-                </a>
-
-                <a
-                  href="tel:911"
-                  className="flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl transition-all group"
-                >
-                  <div>
-                    <h4 className="font-bold text-slate-900">Emergency Services (USA)</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">For urgent medical or life-threatening crises</p>
-                  </div>
-                  <span className="px-4 py-2 bg-slate-900 group-hover:bg-slate-800 text-white rounded-xl font-bold text-sm shadow-md">
-                    Call 911
                   </span>
                 </a>
               </div>
@@ -336,13 +361,13 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
                 <Link
                   href="/chat"
                   onClick={() => setShowSosModal(false)}
-                  className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-2xl text-center shadow-lg transition-all"
+                  className="btn-primary flex-1 py-3 text-center"
                 >
                   Talk to AI Therapist Now
                 </Link>
                 <button
                   onClick={() => setShowSosModal(false)}
-                  className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm rounded-2xl transition-all"
+                  className="btn-secondary px-6 py-3"
                 >
                   Close
                 </button>
