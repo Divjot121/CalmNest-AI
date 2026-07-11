@@ -873,42 +873,62 @@ export async function getNotifications(userId: string): Promise<NotificationData
 
 export async function createNotification(userId: string, title: string, body: string): Promise<string> {
   const targetId = resolveRemoteUserId(userId);
+  const anonUuid = getOrCreateAnonymousUUID();
+  const payload = {
+    user_id: targetId,
+    anon_uuid: anonUuid,
+    title,
+    body,
+    is_read: false,
+    created_at: new Date().toISOString()
+  };
   try {
     const { data, error } = await supabase
       .from('notifications')
-      .insert({
-        user_id: targetId,
-        title,
-        body,
-        is_read: false,
-        created_at: new Date().toISOString()
-      })
+      .insert(payload)
       .select('id')
       .single();
 
-    if (!error && data?.id) return data.id;
-  } catch (e) {}
+    if (error) {
+      queueOfflineWrite('notifications', 'insert', payload);
+    } else if (data?.id) {
+      return data.id;
+    }
+  } catch (e) {
+    queueOfflineWrite('notifications', 'insert', payload);
+  }
   return `local_notif_${Date.now()}`;
 }
 
 export async function markNotificationRead(notifId: string): Promise<void> {
+  const payload = { is_read: true };
   try {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', notifId);
-  } catch (e) {}
+    const { error } = await supabase.from('notifications').update(payload).eq('id', notifId);
+    if (error) queueOfflineWrite('notifications', 'update', payload, { id: notifId });
+  } catch (e) {
+    queueOfflineWrite('notifications', 'update', payload, { id: notifId });
+  }
 }
 
 export async function markAllNotificationsRead(userId: string): Promise<void> {
   const targetId = resolveRemoteUserId(userId);
+  const payload = { is_read: true };
   try {
-    await supabase.from('notifications').update({ is_read: true }).eq('user_id', targetId);
-  } catch (e) {}
+    const { error } = await supabase.from('notifications').update(payload).eq('user_id', targetId);
+    if (error) queueOfflineWrite('notifications', 'update', payload, { user_id: targetId });
+  } catch (e) {
+    queueOfflineWrite('notifications', 'update', payload, { user_id: targetId });
+  }
 }
 
 export async function clearNotifications(userId: string): Promise<void> {
   const targetId = resolveRemoteUserId(userId);
   try {
-    await supabase.from('notifications').delete().eq('user_id', targetId);
-  } catch (e) {}
+    const { error } = await supabase.from('notifications').delete().eq('user_id', targetId);
+    if (error) queueOfflineWrite('notifications', 'delete', null, { user_id: targetId });
+  } catch (e) {
+    queueOfflineWrite('notifications', 'delete', null, { user_id: targetId });
+  }
 }
 
 // ==========================================
@@ -929,15 +949,21 @@ export async function getAmbientPreferences(userId: string) {
 
 export async function saveAmbientPreferences(userId: string, data: { favorites: string[]; customMixes: any[]; volumeRatios?: any }) {
   const targetId = resolveRemoteUserId(userId);
+  const anonUuid = getOrCreateAnonymousUUID();
+  const payload = {
+    user_id: targetId,
+    anon_uuid: anonUuid,
+    favorites: data.favorites,
+    custom_mixes: data.customMixes,
+    volume_ratios: data.volumeRatios || {},
+    updated_at: new Date().toISOString()
+  };
   try {
-    await supabase.from('ambient_preferences').upsert({
-      user_id: targetId,
-      favorites: data.favorites,
-      custom_mixes: data.customMixes,
-      volume_ratios: data.volumeRatios || {},
-      updated_at: new Date().toISOString()
-    });
-  } catch (e) {}
+    const { error } = await supabase.from('ambient_preferences').upsert(payload);
+    if (error) queueOfflineWrite('ambient_preferences', 'upsert', payload);
+  } catch (e) {
+    queueOfflineWrite('ambient_preferences', 'upsert', payload);
+  }
 }
 
 // ==========================================
@@ -979,46 +1005,63 @@ export async function getConversations(userId: string): Promise<ConversationItem
 export async function createConversation(userId: string, title: string = 'New Session'): Promise<string> {
   const targetId = resolveRemoteUserId(userId);
   const anonUuid = getOrCreateAnonymousUUID();
+  const payload = {
+      user_id: targetId,
+      anon_uuid: anonUuid,
+      title,
+      risk_detected: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
   try {
     const { data, error } = await supabase
       .from('conversations')
-      .insert({
-        user_id: targetId,
-        anon_uuid: anonUuid,
-        title,
-        risk_detected: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
+      .insert(payload)
       .select('id')
       .single();
 
-    if (!error && data?.id) return data.id;
-  } catch (e) {}
+    if (error) {
+      queueOfflineWrite('conversations', 'insert', payload);
+    } else if (data?.id) {
+      return data.id;
+    }
+  } catch (e) {
+    queueOfflineWrite('conversations', 'insert', payload);
+  }
   return `local_conv_${Date.now()}`;
 }
 
 export async function renameConversation(convId: string, newTitle: string): Promise<void> {
+  const payload = {
+    title: newTitle,
+    updated_at: new Date().toISOString()
+  };
   try {
-    await supabase
+    const { error } = await supabase
       .from('conversations')
-      .update({
-        title: newTitle,
-        updated_at: new Date().toISOString()
-      })
+      .update(payload)
       .eq('id', convId);
-  } catch (e) {}
+    if (error) queueOfflineWrite('conversations', 'update', payload, { id: convId });
+  } catch (e) {
+    queueOfflineWrite('conversations', 'update', payload, { id: convId });
+  }
 }
 
 export async function deleteConversation(convId: string): Promise<void> {
   try {
-    await supabase.from('conversations').delete().eq('id', convId);
-  } catch (e) {}
+    const { error } = await supabase.from('conversations').delete().eq('id', convId);
+    if (error) queueOfflineWrite('conversations', 'delete', null, { id: convId });
+  } catch (e) {
+    queueOfflineWrite('conversations', 'delete', null, { id: convId });
+  }
 }
 
 export async function deleteAssessmentResult(assessId: string): Promise<void> {
   try {
-    await supabase.from('assessment_results').delete().eq('id', assessId);
-  } catch (e) {}
+    const { error } = await supabase.from('assessment_results').delete().eq('id', assessId);
+    if (error) queueOfflineWrite('assessment_results', 'delete', null, { id: assessId });
+  } catch (e) {
+    queueOfflineWrite('assessment_results', 'delete', null, { id: assessId });
+  }
 }
 

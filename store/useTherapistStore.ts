@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { useAuthStore } from './useAuthStore';
 import { supabase } from '@/lib/supabase';
 import { getOrCreateAnonymousUUID } from '@/lib/identity-service';
+import { queueOfflineWrite } from '@/lib/offline-sync-queue';
 
 export interface ChatMessage {
   id: string;
@@ -126,28 +127,38 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
       const user = useAuthStore.getState().user;
       const targetId = user?.id || getOrCreateAnonymousUUID();
 
+      const convPayload = {
+        user_id: targetId,
+        anon_uuid: targetId,
+        title,
+        risk_detected: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
       const { data: inserted, error } = await supabase
         .from('conversations')
-        .insert({
-          user_id: targetId,
-          anon_uuid: targetId,
-          title,
-          risk_detected: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+        .insert(convPayload)
         .select('id')
         .single();
 
-      if (error || !inserted?.id) return null;
+      if (error || !inserted?.id) {
+        queueOfflineWrite('conversations', 'insert', convPayload);
+        return null;
+      }
 
       const welcomeText = `Hello ${user?.name || 'friend'}! I am CalmNest, your safe space for support, reflection, and mindfulness. How are you feeling today?`;
-      await supabase.from('messages').insert({
+      const msgPayload = {
         conversation_id: inserted.id,
         role: 'assistant',
         content: welcomeText,
         created_at: new Date().toISOString()
-      });
+      };
+      try {
+        const { error: msgErr } = await supabase.from('messages').insert(msgPayload);
+        if (msgErr) queueOfflineWrite('messages', 'insert', msgPayload);
+      } catch (e) {
+        queueOfflineWrite('messages', 'insert', msgPayload);
+      }
 
       const newConv: ConversationSummary = {
         id: inserted.id,
@@ -168,7 +179,8 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
   },
   deleteConversation: async (id) => {
     try {
-      await supabase.from('conversations').delete().eq('id', id);
+      const { error } = await supabase.from('conversations').delete().eq('id', id);
+      if (error) queueOfflineWrite('conversations', 'delete', null, { id });
       set(state => {
         const remaining = state.conversations.filter(c => c.id !== id);
         const nextActive = state.activeConversationId === id ? (remaining[0]?.id || null) : state.activeConversationId;
@@ -188,8 +200,10 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
     }
   },
   renameConversation: async (id, newTitle) => {
+    const payload = { title: newTitle, updated_at: new Date().toISOString() };
     try {
-      await supabase.from('conversations').update({ title: newTitle, updated_at: new Date().toISOString() }).eq('id', id);
+      const { error } = await supabase.from('conversations').update(payload).eq('id', id);
+      if (error) queueOfflineWrite('conversations', 'update', payload, { id });
       set(state => ({
         conversations: state.conversations.map(c => c.id === id ? { ...c, title: newTitle } : c)
       }));
@@ -221,13 +235,15 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
       isSending: true
     }));
 
-    try {
-      const { data: userMsgDoc } = await supabase.from('messages').insert({
+    const userPayload = {
         conversation_id: convId,
         role: 'user',
         content: text,
         created_at: new Date().toISOString()
-      }).select('id').single();
+      };
+    try {
+      const { data: userMsgDoc, error: userErr } = await supabase.from('messages').insert(userPayload).select('id').single();
+      if (userErr) queueOfflineWrite('messages', 'insert', userPayload);
 
       const currentMessages = get().messages.map(m => ({
         role: m.role,
@@ -249,18 +265,18 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
         crisis = data.crisisDetected || false;
       }
 
-      const { data: aiMsgDoc } = await supabase.from('messages').insert({
+      const aiPayload = {
         conversation_id: convId,
         role: 'assistant',
         content: aiResponseText,
         created_at: new Date().toISOString()
-      }).select('id').single();
+      };
+      const { data: aiMsgDoc, error: aiErr } = await supabase.from('messages').insert(aiPayload).select('id').single();
+      if (aiErr) queueOfflineWrite('messages', 'insert', aiPayload);
 
-      if (crisis || get().crisisDetected) {
-        await supabase.from('conversations').update({ risk_detected: true, updated_at: new Date().toISOString() }).eq('id', convId);
-      } else {
-        await supabase.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId);
-      }
+      const statusPayload = { risk_detected: crisis || get().crisisDetected, updated_at: new Date().toISOString() };
+      const { error: statusErr } = await supabase.from('conversations').update(statusPayload).eq('id', convId);
+      if (statusErr) queueOfflineWrite('conversations', 'update', statusPayload, { id: convId });
 
       const aiMsgObj: ChatMessage = {
         id: aiMsgDoc?.id || `ai-${Date.now()}`,

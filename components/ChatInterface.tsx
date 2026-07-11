@@ -31,6 +31,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useSanctuaryTranslation } from '@/lib/i18n/useSanctuaryTranslation';
 import { triggerGentleSanctuaryCelebration } from '@/components/SanctuaryConfetti';
 import { getOrCreateAnonymousUUID } from '@/lib/identity-service';
+import { queueOfflineWrite } from '@/lib/offline-sync-queue';
 import {
   getConversations,
   createConversation,
@@ -288,14 +289,20 @@ export default function ChatInterface() {
     // If not a retry, insert user message first
     if (!isRetry) {
       setMessages(prev => [...prev, newUserMsg, newAiPlaceholderMsg]);
+      const userPayload = {
+        conversation_id: selectedConversationId,
+        role: 'user',
+        content: promptText,
+        created_at: new Date().toISOString()
+      };
       try {
-        await supabase.from('messages').insert({
-          conversation_id: selectedConversationId,
-          role: 'user',
-          content: promptText,
-          created_at: new Date().toISOString()
-        });
-      } catch (e) {}
+        const { error } = await supabase.from('messages').insert(userPayload);
+        if (error) {
+          queueOfflineWrite('messages', 'insert', userPayload);
+        }
+      } catch (e) {
+        queueOfflineWrite('messages', 'insert', userPayload);
+      }
     } else {
       setMessages(prev => [...prev, newAiPlaceholderMsg]);
     }
@@ -394,20 +401,26 @@ export default function ChatInterface() {
       }
 
       // Sync AI message back to supabase once finished
+      const aiPayload = {
+        conversation_id: selectedConversationId,
+        role: 'assistant',
+        content: accumulatedText,
+        sentiment: sentimentValue,
+        created_at: new Date().toISOString()
+      };
       try {
-        await supabase.from('messages').insert({
-          conversation_id: selectedConversationId,
-          role: 'assistant',
-          content: accumulatedText,
-          sentiment: sentimentValue,
-          created_at: new Date().toISOString()
-        });
+        const { error } = await supabase.from('messages').insert(aiPayload);
+        if (error) {
+          queueOfflineWrite('messages', 'insert', aiPayload);
+        }
 
         // Trigger subtle celebration sound or pulse
         if (preferences.ambientAutoResume) {
           // Play lightweight tone if custom sound store handles it
         }
-      } catch (dbErr) {}
+      } catch (dbErr) {
+        queueOfflineWrite('messages', 'insert', aiPayload);
+      }
 
     } catch (err: any) {
       if (err.name !== 'AbortError') {
