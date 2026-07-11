@@ -979,8 +979,15 @@ export interface ConversationItem {
 }
 
 export async function getConversations(userId: string): Promise<ConversationItem[]> {
+  const activeIds = resolveActiveUserIds(userId);
   const targetId = resolveRemoteUserId(userId);
   const anonUuid = getOrCreateAnonymousUUID();
+
+  const localList: ConversationItem[] = [];
+  activeIds.forEach(id => {
+    localList.push(...getLocalList<ConversationItem>(`calmnest_conversations_${id}`));
+  });
+
   try {
     const { data, error } = await supabase
       .from('conversations')
@@ -989,7 +996,7 @@ export async function getConversations(userId: string): Promise<ConversationItem
       .order('updated_at', { ascending: false });
 
     if (!error && data) {
-      return data.map((d: any) => ({
+      const mapped = data.map((d: any) => ({
         id: d.id,
         userId: d.user_id,
         title: d.title,
@@ -997,22 +1004,47 @@ export async function getConversations(userId: string): Promise<ConversationItem
         createdAt: d.created_at,
         updatedAt: d.updated_at
       }));
+
+      const merged = [...mapped];
+      localList.forEach(loc => {
+        if (!merged.some(m => m.id === loc.id)) {
+          merged.push(loc);
+        }
+      });
+      setLocalList(`calmnest_conversations_${userId}`, merged);
+      return merged;
     }
   } catch (e) {}
-  return [];
+  return localList;
 }
 
 export async function createConversation(userId: string, title: string = 'New Session'): Promise<string> {
   const targetId = resolveRemoteUserId(userId);
   const anonUuid = getOrCreateAnonymousUUID();
+  const localId = `local_conv_${Date.now()}`;
+  const localItem = {
+    id: localId,
+    userId: targetId,
+    title,
+    riskDetected: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  const activeIds = resolveActiveUserIds(userId);
+  activeIds.forEach(id => {
+    const list = getLocalList<ConversationItem>(`calmnest_conversations_${id}`);
+    setLocalList(`calmnest_conversations_${id}`, [localItem, ...list]);
+  });
+
   const payload = {
-      user_id: targetId,
-      anon_uuid: anonUuid,
-      title,
-      risk_detected: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
+    user_id: targetId,
+    anon_uuid: anonUuid,
+    title,
+    risk_detected: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
   try {
     const { data, error } = await supabase
       .from('conversations')
@@ -1023,15 +1055,27 @@ export async function createConversation(userId: string, title: string = 'New Se
     if (error) {
       queueOfflineWrite('conversations', 'insert', payload);
     } else if (data?.id) {
+      activeIds.forEach(id => {
+        const list = getLocalList<ConversationItem>(`calmnest_conversations_${id}`);
+        const updated = list.map(item => item.id === localId ? { ...item, id: data.id } : item);
+        setLocalList(`calmnest_conversations_${id}`, updated);
+      });
       return data.id;
     }
   } catch (e) {
     queueOfflineWrite('conversations', 'insert', payload);
   }
-  return `local_conv_${Date.now()}`;
+  return localId;
 }
 
 export async function renameConversation(convId: string, newTitle: string): Promise<void> {
+  const activeIds = resolveActiveUserIds();
+  activeIds.forEach(id => {
+    const list = getLocalList<ConversationItem>(`calmnest_conversations_${id}`);
+    const updated = list.map(item => item.id === convId ? { ...item, title: newTitle, updatedAt: new Date().toISOString() } : item);
+    setLocalList(`calmnest_conversations_${id}`, updated);
+  });
+
   const payload = {
     title: newTitle,
     updated_at: new Date().toISOString()
@@ -1048,6 +1092,13 @@ export async function renameConversation(convId: string, newTitle: string): Prom
 }
 
 export async function deleteConversation(convId: string): Promise<void> {
+  const activeIds = resolveActiveUserIds();
+  activeIds.forEach(id => {
+    const list = getLocalList<ConversationItem>(`calmnest_conversations_${id}`);
+    const filtered = list.filter(item => item.id !== convId);
+    setLocalList(`calmnest_conversations_${id}`, filtered);
+  });
+
   try {
     const { error } = await supabase.from('conversations').delete().eq('id', convId);
     if (error) queueOfflineWrite('conversations', 'delete', null, { id: convId });

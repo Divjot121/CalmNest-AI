@@ -105,16 +105,27 @@ export default function ChatInterface() {
   const loadConversations = async (userId: string) => {
     try {
       const list = await getConversations(userId);
-      setConversations(list);
       
       if (list.length > 0) {
-        // Select the most recent conversation by default
+        setConversations(list);
         setSelectedConversationId(list[0].id);
       } else {
-        // Create a default welcome conversation if none exist
         const newId = await createConversation(userId, 'Sanctuary Session');
         const newList = await getConversations(userId);
-        setConversations(newList);
+        if (newId.startsWith('local_') || !newList.some(c => c.id === newId)) {
+          const localItem = {
+            id: newId,
+            userId,
+            title: 'Sanctuary Session',
+            riskDetected: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          const mergedList = [localItem, ...newList];
+          setConversations(mergedList);
+        } else {
+          setConversations(newList);
+        }
         setSelectedConversationId(newId);
       }
     } catch (e) {
@@ -152,13 +163,26 @@ export default function ChatInterface() {
             createdAt: m.created_at || new Date().toISOString()
           }));
           setMessages(mapped);
+          try {
+            window.localStorage.setItem(`calmnest_messages_${selectedConversationId}`, JSON.stringify(mapped));
+          } catch (e) {}
           setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         } else {
-          setMessages([]);
+          const cached = window.localStorage.getItem(`calmnest_messages_${selectedConversationId}`);
+          if (cached) {
+            setMessages(JSON.parse(cached));
+          } else {
+            setMessages([]);
+          }
         }
       } catch (err) {
         console.error('Failed to load messages:', err);
-        setMessages([]);
+        const cached = window.localStorage.getItem(`calmnest_messages_${selectedConversationId}`);
+        if (cached) {
+          setMessages(JSON.parse(cached));
+        } else {
+          setMessages([]);
+        }
       }
     };
 
@@ -288,7 +312,13 @@ export default function ChatInterface() {
 
     // If not a retry, insert user message first
     if (!isRetry) {
-      setMessages(prev => [...prev, newUserMsg, newAiPlaceholderMsg]);
+      setMessages(prev => {
+        const updated = [...prev, newUserMsg, newAiPlaceholderMsg];
+        try {
+          window.localStorage.setItem(`calmnest_messages_${selectedConversationId}`, JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
       const userPayload = {
         conversation_id: selectedConversationId,
         role: 'user',
@@ -378,6 +408,9 @@ export default function ChatInterface() {
                       if (idx !== -1) {
                         list[idx] = { ...list[idx], text: accumulatedText, sentiment: sentimentValue };
                       }
+                      try {
+                        window.localStorage.setItem(`calmnest_messages_${selectedConversationId}`, JSON.stringify(list));
+                      } catch (e) {}
                       return list;
                     });
                   }
