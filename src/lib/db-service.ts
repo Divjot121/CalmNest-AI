@@ -2,6 +2,7 @@
 
 import { supabase } from './supabase';
 import { getOrCreateAnonymousUUID } from './identity-service';
+import { queueOfflineWrite } from './offline-sync-queue';
 
 /**
  * Resolves local ID vs active auth ID
@@ -161,8 +162,7 @@ export async function logMoodEntry(userId: string, data: { moodScore: number; in
     setLocalList(`calmnest_moodLogs_${id}`, [localItem, ...list]);
   });
 
-  try {
-    const { data: inserted, error } = await supabase.from('moods').insert({
+  const payload = {
       user_id: targetId,
       anon_uuid: anonUuid,
       mood_score: data.moodScore,
@@ -170,13 +170,18 @@ export async function logMoodEntry(userId: string, data: { moodScore: number; in
       tags: data.tags || [],
       notes: data.notes || '',
       created_at: new Date().toISOString()
-    }).select('id').single();
+    };
+  try {
+    const { data: inserted, error } = await supabase.from('moods').insert(payload).select('id').single();
 
-    if (!error && inserted?.id) {
+    if (error) {
+      queueOfflineWrite('moods', 'insert', payload);
+    } else if (inserted?.id) {
       return inserted.id;
     }
   } catch (e) {
     console.warn('[Supabase DB] Offline fallback used for mood entry:', e);
+    queueOfflineWrite('moods', 'insert', payload);
   }
   return localId;
 }
@@ -260,20 +265,25 @@ export async function saveWellnessSession(userId: string, data: { type: string; 
     setLocalList(`calmnest_wellnessSessions_${id}`, [localItem, ...list]);
   });
 
-  try {
-    const { data: inserted, error } = await supabase.from('meditation_sessions').insert({
+  const payload = {
       user_id: targetId,
       anon_uuid: anonUuid,
       type: data.type,
       duration: data.duration,
       completed_at: data.completedAt,
       created_at: new Date().toISOString()
-    }).select('id').single();
+    };
+  try {
+    const { data: inserted, error } = await supabase.from('meditation_sessions').insert(payload).select('id').single();
 
-    if (!error && inserted?.id) {
+    if (error) {
+      queueOfflineWrite('meditation_sessions', 'insert', payload);
+    } else if (inserted?.id) {
       return inserted.id;
     }
-  } catch (e) {}
+  } catch (e) {
+    queueOfflineWrite('meditation_sessions', 'insert', payload);
+  }
   return localId;
 }
 
@@ -391,8 +401,7 @@ export async function saveJournalEntry(userId: string, data: { title: string; co
     setLocalList(`calmnest_journalEntries_${id}`, [localItem, ...list]);
   });
 
-  try {
-    const { data: inserted, error } = await supabase.from('journals').insert({
+  const payload = {
       user_id: targetId,
       anon_uuid: anonUuid,
       title: data.title,
@@ -403,12 +412,18 @@ export async function saveJournalEntry(userId: string, data: { title: string; co
       is_draft: data.isDraft || false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
-    }).select('id').single();
+    };
+  try {
+    const { data: inserted, error } = await supabase.from('journals').insert(payload).select('id').single();
 
-    if (!error && inserted?.id) {
+    if (error) {
+      queueOfflineWrite('journals', 'insert', payload);
+    } else if (inserted?.id) {
       return inserted.id;
     }
-  } catch (e) {}
+  } catch (e) {
+    queueOfflineWrite('journals', 'insert', payload);
+  }
   return localId;
 }
 
@@ -421,17 +436,21 @@ export async function updateJournalEntry(entryId: string, data: { title: string;
   });
 
   if (entryId && !entryId.startsWith('local_')) {
+    const payload = {
+      title: data.title,
+      content: data.content,
+      mood_tag: data.moodTag || '',
+      custom_tags: data.customTags || [],
+      image_url: data.imageUrl || '',
+      is_draft: data.isDraft || false,
+      updated_at: new Date().toISOString()
+    };
     try {
-      await supabase.from('journals').update({
-        title: data.title,
-        content: data.content,
-        mood_tag: data.moodTag || '',
-        custom_tags: data.customTags || [],
-        image_url: data.imageUrl || '',
-        is_draft: data.isDraft || false,
-        updated_at: new Date().toISOString()
-      }).eq('id', entryId);
-    } catch (e) {}
+      const { error } = await supabase.from('journals').update(payload).eq('id', entryId);
+      if (error) queueOfflineWrite('journals', 'update', payload, { id: entryId });
+    } catch (e) {
+      queueOfflineWrite('journals', 'update', payload, { id: entryId });
+    }
   }
 }
 
@@ -445,8 +464,11 @@ export async function deleteJournalEntry(entryId: string): Promise<void> {
 
   if (entryId && !entryId.startsWith('local_')) {
     try {
-      await supabase.from('journals').delete().eq('id', entryId);
-    } catch (e) {}
+      const { error } = await supabase.from('journals').delete().eq('id', entryId);
+      if (error) queueOfflineWrite('journals', 'delete', null, { id: entryId });
+    } catch (e) {
+      queueOfflineWrite('journals', 'delete', null, { id: entryId });
+    }
   }
 }
 
@@ -555,9 +577,14 @@ export async function deleteHabit(habitId: string): Promise<void> {
 
   if (habitId && !habitId.startsWith('local_')) {
     try {
-      await supabase.from('habits').delete().eq('id', habitId);
-      await supabase.from('habit_logs').delete().eq('habit_id', habitId);
-    } catch (e) {}
+      const { error: err1 } = await supabase.from('habits').delete().eq('id', habitId);
+      const { error: err2 } = await supabase.from('habit_logs').delete().eq('habit_id', habitId);
+      if (err1) queueOfflineWrite('habits', 'delete', null, { id: habitId });
+      if (err2) queueOfflineWrite('habit_logs', 'delete', null, { habit_id: habitId });
+    } catch (e) {
+      queueOfflineWrite('habits', 'delete', null, { id: habitId });
+      queueOfflineWrite('habit_logs', 'delete', null, { habit_id: habitId });
+    }
   }
 }
 
@@ -762,8 +789,11 @@ export async function deleteMoodEntry(logId: string): Promise<void> {
 
   if (logId && !logId.startsWith('local_')) {
     try {
-      await supabase.from('moods').delete().eq('id', logId);
-    } catch (e) {}
+      const { error } = await supabase.from('moods').delete().eq('id', logId);
+      if (error) queueOfflineWrite('moods', 'delete', null, { id: logId });
+    } catch (e) {
+      queueOfflineWrite('moods', 'delete', null, { id: logId });
+    }
   }
 }
 

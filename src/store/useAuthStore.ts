@@ -10,6 +10,7 @@ import {
   mergeCapturedDataToAccount
 } from '@/lib/identity-service';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { initializeOfflineSyncListener } from '@/lib/offline-sync-queue';
 
 export interface User {
   id: string;
@@ -47,6 +48,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   setUser: (user) => set({ user, isLoading: false }),
   checkAuth: () => {
+    // Initialize offline sync queue listener
+    initializeOfflineSyncListener();
+
     return new Promise((resolve) => {
       set({ isLoading: true });
       const anonUuid = getOrCreateAnonymousUUID();

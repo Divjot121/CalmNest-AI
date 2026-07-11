@@ -487,23 +487,97 @@ export async function mergeCapturedDataToAccount(oldUid: string, newAccountUid: 
   }
 
   try {
+    // 1. Merge user settings (preferences)
+    const { data: anonSettings } = await supabase.from('user_settings').select('*').eq('user_id', oldUid).maybeSingle();
     const prefs = getStoredPreferences();
-    await supabase.from('user_settings').upsert({
-      user_id: newAccountUid,
-      anon_uuid: anonUuid,
-      preferences: prefs,
-      is_anonymous: false,
-      merged_at: new Date().toISOString()
-    });
+    const { data: userSettings } = await supabase.from('user_settings').select('*').eq('user_id', newAccountUid).maybeSingle();
+    if (userSettings) {
+      const mergedPrefs = { ...prefs, ...(anonSettings?.preferences || {}), ...(userSettings.preferences || {}) };
+      await supabase.from('user_settings').update({
+        preferences: mergedPrefs,
+        merged_at: new Date().toISOString(),
+        is_anonymous: false
+      }).eq('user_id', newAccountUid);
+      if (anonSettings) {
+        await supabase.from('user_settings').delete().eq('user_id', oldUid);
+      }
+    } else {
+      await supabase.from('user_settings').upsert({
+        user_id: newAccountUid,
+        anon_uuid: anonUuid,
+        preferences: anonSettings?.preferences || prefs,
+        is_anonymous: false,
+        merged_at: new Date().toISOString()
+      });
+      if (anonSettings) {
+        await supabase.from('user_settings').delete().eq('user_id', oldUid);
+      }
+    }
 
-    // Update ownership of journals
-    await supabase.from('journals').update({ user_id: newAccountUid }).or(`user_id.eq.${oldUid},anon_uuid.eq.${oldUid}`);
-    await supabase.from('moods').update({ user_id: newAccountUid }).or(`user_id.eq.${oldUid},anon_uuid.eq.${oldUid}`);
-    await supabase.from('habits').update({ user_id: newAccountUid }).or(`user_id.eq.${oldUid},anon_uuid.eq.${oldUid}`);
-    await supabase.from('habit_logs').update({ user_id: newAccountUid }).or(`user_id.eq.${oldUid},anon_uuid.eq.${oldUid}`);
-    await supabase.from('meditation_sessions').update({ user_id: newAccountUid }).or(`user_id.eq.${oldUid},anon_uuid.eq.${oldUid}`);
-    await supabase.from('assessment_results').update({ user_id: newAccountUid }).or(`user_id.eq.${oldUid},anon_uuid.eq.${oldUid}`);
-    await supabase.from('conversations').update({ user_id: newAccountUid }).or(`user_id.eq.${oldUid},anon_uuid.eq.${oldUid}`);
+    // 2. Merge streaks
+    const { data: anonStreak } = await supabase.from('streaks').select('*').eq('user_id', oldUid).maybeSingle();
+    if (anonStreak) {
+      const { data: userStreak } = await supabase.from('streaks').select('*').eq('user_id', newAccountUid).maybeSingle();
+      if (userStreak) {
+        const mergedCurrent = Math.max(anonStreak.current_streak || 1, userStreak.current_streak || 1);
+        const mergedBest = Math.max(anonStreak.best_streak || 1, userStreak.best_streak || 1);
+        await supabase.from('streaks').update({
+          current_streak: mergedCurrent,
+          best_streak: mergedBest,
+          last_activity_date: anonStreak.last_activity_date || userStreak.last_activity_date
+        }).eq('user_id', newAccountUid);
+        await supabase.from('streaks').delete().eq('user_id', oldUid);
+      } else {
+        await supabase.from('streaks').upsert({
+          user_id: newAccountUid,
+          anon_uuid: anonUuid,
+          current_streak: anonStreak.current_streak,
+          best_streak: anonStreak.best_streak,
+          last_activity_date: anonStreak.last_activity_date
+        });
+        await supabase.from('streaks').delete().eq('user_id', oldUid);
+      }
+    }
+
+    // 3. Merge ambient preferences
+    const { data: anonAmbient } = await supabase.from('ambient_preferences').select('*').eq('user_id', oldUid).maybeSingle();
+    if (anonAmbient) {
+      const { data: userAmbient } = await supabase.from('ambient_preferences').select('*').eq('user_id', newAccountUid).maybeSingle();
+      if (userAmbient) {
+        const mergedFavorites = Array.from(new Set([...(anonAmbient.favorites || []), ...(userAmbient.favorites || [])]));
+        const mergedMixes = [...(anonAmbient.custom_mixes || []), ...(userAmbient.custom_mixes || [])];
+        const mergedVolume = { ...(anonAmbient.volume_ratios || {}), ...(userAmbient.volume_ratios || {}) };
+        await supabase.from('ambient_preferences').update({
+          favorites: mergedFavorites,
+          custom_mixes: mergedMixes,
+          volume_ratios: mergedVolume
+        }).eq('user_id', newAccountUid);
+        await supabase.from('ambient_preferences').delete().eq('user_id', oldUid);
+      } else {
+        await supabase.from('ambient_preferences').upsert({
+          user_id: newAccountUid,
+          favorites: anonAmbient.favorites,
+          custom_mixes: anonAmbient.custom_mixes,
+          volume_ratios: anonAmbient.volume_ratios
+        });
+        await supabase.from('ambient_preferences').delete().eq('user_id', oldUid);
+      }
+    }
+
+    // 4. Update simple ownership reference tables
+    const filter = `user_id.eq.${oldUid},anon_uuid.eq.${oldUid}`;
+    await supabase.from('journals').update({ user_id: newAccountUid }).or(filter);
+    await supabase.from('moods').update({ user_id: newAccountUid }).or(filter);
+    await supabase.from('habits').update({ user_id: newAccountUid }).or(filter);
+    await supabase.from('habit_logs').update({ user_id: newAccountUid }).or(filter);
+    await supabase.from('meditation_sessions').update({ user_id: newAccountUid }).or(filter);
+    await supabase.from('breathing_sessions').update({ user_id: newAccountUid }).or(filter);
+    await supabase.from('assessment_results').update({ user_id: newAccountUid }).or(filter);
+    await supabase.from('conversations').update({ user_id: newAccountUid }).or(filter);
+    await supabase.from('wellness_plans').update({ user_id: newAccountUid }).or(filter);
+    await supabase.from('ai_memory').update({ user_id: newAccountUid }).or(filter);
+    await supabase.from('notifications').update({ user_id: newAccountUid }).or(filter);
+    await supabase.from('reminders').update({ user_id: newAccountUid }).or(filter);
   } catch (e) {
     console.error("[Identity Service] Supabase upload during merge failed:", e);
   }
