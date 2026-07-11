@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
           // 2. Call Gemini Stream
           const ai = getGemini();
           const chat = ai.chats.create({ 
-            model: "gemini-2.5-flash",
+            model: "gemini-3.5-flash",
             config: {
               systemInstruction: systemPrompt
             },
