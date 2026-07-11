@@ -1,20 +1,7 @@
 import { create } from 'zustand';
 import { useAuthStore } from './useAuthStore';
-import { auth, db } from '@/lib/firebase';
-import {
-  collection,
-  doc,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  serverTimestamp,
-  getDoc
-} from 'firebase/firestore';
+import { supabase } from '@/lib/supabase';
+import { getOrCreateAnonymousUUID } from '@/lib/identity-service';
 
 export interface ChatMessage {
   id: string;
@@ -65,28 +52,28 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
       if (!user?.id) {
         user = (await useAuthStore.getState().loginAnonymously())?.success ? useAuthStore.getState().user : null;
       }
-      if (!user?.id || !auth.currentUser) {
+      const targetId = user?.id || getOrCreateAnonymousUUID();
+
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .or(`user_id.eq.${targetId},anon_uuid.eq.${targetId}`)
+        .order('updated_at', { ascending: false });
+
+      if (error || !data) {
         set({ isLoadingConversations: false });
         return;
       }
-      const q = query(
-        collection(db, 'chats'),
-        where('userId', '==', user.id),
-        orderBy('updatedAt', 'desc')
-      );
-      const snap = await getDocs(q);
-      const conversations: ConversationSummary[] = snap.docs.map(d => ({
+
+      const conversations: ConversationSummary[] = data.map((d: any) => ({
         id: d.id,
-        title: d.data().title || 'Chat Session',
-        updatedAt: d.data().updatedAt?.toDate?.()?.toISOString() || new Date().toISOString()
+        title: d.title || 'Chat Session',
+        updatedAt: d.updated_at || new Date().toISOString()
       }));
 
-      // If no conversations exist, auto-create a welcome session
       if (conversations.length === 0) {
         const newId = await get().createNewConversation('Welcome to CalmNest AI');
-        if (newId) {
-          return;
-        }
+        if (newId) return;
       }
 
       set({ conversations, isLoadingConversations: false });
@@ -104,42 +91,30 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
     }
     set({ activeConversationId: id, isLoadingMessages: true, crisisDetected: false });
     try {
-      if (!auth.currentUser) {
-        set({ isLoadingMessages: false });
-        return;
-      }
-      const chatDocRef = doc(db, 'chats', id);
-      const chatDoc = await getDoc(chatDocRef);
-      if (chatDoc.exists()) {
-        set({ crisisDetected: chatDoc.data()?.crisisDetected || false });
+      const { data: convData } = await supabase
+        .from('conversations')
+        .select('risk_detected')
+        .eq('id', id)
+        .single();
+
+      if (convData) {
+        set({ crisisDetected: convData.risk_detected || false });
       }
 
-      const q = query(
-        collection(db, 'chats', id, 'messages'),
-        orderBy('createdAt', 'asc'),
-        limit(100)
-      );
-      const snap = await getDocs(q);
-      const flatMsgs: ChatMessage[] = [];
-      snap.docs.forEach(d => {
-        const data = d.data();
-        if (data.text) {
-          flatMsgs.push({
-            id: d.id + '-user',
-            role: 'user',
-            content: data.text,
-            createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()
-          });
-        }
-        if (data.responseText) {
-          flatMsgs.push({
-            id: d.id + '-ai',
-            role: 'assistant',
-            content: data.responseText,
-            createdAt: data.responseCreatedAt?.toDate?.()?.toISOString() || data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()
-          });
-        }
-      });
+      const { data: msgData, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', id)
+        .order('created_at', { ascending: true })
+        .limit(100);
+
+      const flatMsgs: ChatMessage[] = (msgData || []).map((m: any) => ({
+        id: m.id,
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+        sentiment: m.sentiment,
+        createdAt: m.created_at || new Date().toISOString()
+      }));
 
       set({ messages: flatMsgs, isLoadingMessages: false });
     } catch (error) {
@@ -149,48 +124,51 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
   createNewConversation: async (title = 'New Session') => {
     try {
       const user = useAuthStore.getState().user;
-      if (!user?.id || !auth.currentUser) return null;
+      const targetId = user?.id || getOrCreateAnonymousUUID();
 
-      const chatRef = await addDoc(collection(db, 'chats'), {
-        userId: user.id,
-        title,
-        status: 'active',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        crisisDetected: false
-      });
+      const { data: inserted, error } = await supabase
+        .from('conversations')
+        .insert({
+          user_id: targetId,
+          anon_uuid: targetId,
+          title,
+          risk_detected: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select('id')
+        .single();
 
-      // Add welcome message inside a messages doc using response fields
-      await addDoc(collection(db, 'chats', chatRef.id, 'messages'), {
-        responseText: `Hello ${user.name || 'friend'}! I am CalmNest, your safe space for support, reflection, and mindfulness. How are you feeling today?`,
-        senderId: 'ai',
-        senderType: 'ai',
+      if (error || !inserted?.id) return null;
+
+      const welcomeText = `Hello ${user?.name || 'friend'}! I am CalmNest, your safe space for support, reflection, and mindfulness. How are you feeling today?`;
+      await supabase.from('messages').insert({
+        conversation_id: inserted.id,
         role: 'assistant',
-        createdAt: serverTimestamp(),
-        responseCreatedAt: serverTimestamp()
+        content: welcomeText,
+        created_at: new Date().toISOString()
       });
 
       const newConv: ConversationSummary = {
-        id: chatRef.id,
+        id: inserted.id,
         title,
         updatedAt: new Date().toISOString()
       };
 
       set(state => ({
         conversations: [newConv, ...state.conversations],
-        activeConversationId: chatRef.id
+        activeConversationId: inserted.id
       }));
 
-      await get().selectConversation(chatRef.id);
-      return chatRef.id;
+      await get().selectConversation(inserted.id);
+      return inserted.id;
     } catch (error) {
       return null;
     }
   },
   deleteConversation: async (id) => {
     try {
-      if (!auth.currentUser) return false;
-      await deleteDoc(doc(db, 'chats', id));
+      await supabase.from('conversations').delete().eq('id', id);
       set(state => {
         const remaining = state.conversations.filter(c => c.id !== id);
         const nextActive = state.activeConversationId === id ? (remaining[0]?.id || null) : state.activeConversationId;
@@ -211,8 +189,7 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
   },
   renameConversation: async (id, newTitle) => {
     try {
-      if (!auth.currentUser) return false;
-      await updateDoc(doc(db, 'chats', id), { title: newTitle, updatedAt: serverTimestamp() });
+      await supabase.from('conversations').update({ title: newTitle, updated_at: new Date().toISOString() }).eq('id', id);
       set(state => ({
         conversations: state.conversations.map(c => c.id === id ? { ...c, title: newTitle } : c)
       }));
@@ -224,7 +201,7 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
   sendMessage: async (text) => {
     if (!text.trim() || get().isSending) return false;
     const user = useAuthStore.getState().user;
-    if (!user?.id || !auth.currentUser) return false;
+    const targetId = user?.id || getOrCreateAnonymousUUID();
 
     let convId = get().activeConversationId;
     if (!convId) {
@@ -245,18 +222,13 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
     }));
 
     try {
-      // Save user query to Firestore messages collection
-      const msgDocRef = await addDoc(collection(db, 'chats', convId, 'messages'), {
-        text,
-        content: text,
-        senderId: user.id,
-        anonymousUserId: user.id,
-        senderType: 'user',
+      const { data: userMsgDoc } = await supabase.from('messages').insert({
+        conversation_id: convId,
         role: 'user',
-        createdAt: serverTimestamp()
-      });
+        content: text,
+        created_at: new Date().toISOString()
+      }).select('id').single();
 
-      // Call Gemini endpoint
       const currentMessages = get().messages.map(m => ({
         role: m.role,
         content: m.content
@@ -277,34 +249,28 @@ export const useTherapistStore = create<TherapistState>((set, get) => ({
         crisis = data.crisisDetected || false;
       }
 
-      // Save AI response as a separate message entry to avoid permission errors on updates
-      const aiDocRef = await addDoc(collection(db, 'chats', convId, 'messages'), {
-        responseText: aiResponseText,
-        content: aiResponseText,
-        senderId: 'ai',
-        senderType: 'ai',
+      const { data: aiMsgDoc } = await supabase.from('messages').insert({
+        conversation_id: convId,
         role: 'assistant',
-        createdAt: serverTimestamp(),
-        responseCreatedAt: serverTimestamp()
-      });
+        content: aiResponseText,
+        created_at: new Date().toISOString()
+      }).select('id').single();
 
-      try {
-        if (crisis) {
-          await updateDoc(doc(db, 'chats', convId), { crisisDetected: true, updatedAt: serverTimestamp() });
-        } else {
-          await updateDoc(doc(db, 'chats', convId), { updatedAt: serverTimestamp() });
-        }
-      } catch (e) {}
+      if (crisis || get().crisisDetected) {
+        await supabase.from('conversations').update({ risk_detected: true, updated_at: new Date().toISOString() }).eq('id', convId);
+      } else {
+        await supabase.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId);
+      }
 
       const aiMsgObj: ChatMessage = {
-        id: aiDocRef.id + '-ai',
+        id: aiMsgDoc?.id || `ai-${Date.now()}`,
         role: 'assistant',
         content: aiResponseText,
         createdAt: new Date().toISOString()
       };
 
       set(state => ({
-        messages: state.messages.filter(m => m.id !== tempUserMsg.id).concat({ ...tempUserMsg, id: msgDocRef.id + '-user' }, aiMsgObj),
+        messages: state.messages.filter(m => m.id !== tempUserMsg.id).concat({ ...tempUserMsg, id: userMsgDoc?.id || tempUserMsg.id }, aiMsgObj),
         isSending: false,
         crisisDetected: state.crisisDetected || crisis
       }));

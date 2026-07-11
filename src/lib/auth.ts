@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifyAccessToken, TokenPayload } from './jwt';
-import { prisma } from './db';
+import { supabase } from './supabase';
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = await bcrypt.genSalt(12);
@@ -20,6 +20,9 @@ export async function getAuthSession(reqHeaderOrRequest?: NextRequest | Headers)
     name: string;
     role: 'USER' | 'MODERATOR' | 'ADMIN';
     avatarUrl: string | null;
+    streak?: number;
+    bestStreak?: number;
+    isAnonymous?: boolean;
   };
 } | null> {
   try {
@@ -47,26 +50,24 @@ export async function getAuthSession(reqHeaderOrRequest?: NextRequest | Headers)
     const payload = await verifyAccessToken(token);
     if (!payload || !payload.userId) return null;
 
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        avatarUrl: true,
-      },
-    });
+    const { data: user, error } = await supabase
+      .from('profiles')
+      .select('id, email, name, role, avatar_url, streak, best_streak')
+      .eq('id', payload.userId)
+      .single();
 
-    if (!user) return null;
+    if (error || !user) return null;
 
     return {
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role as 'USER' | 'MODERATOR' | 'ADMIN',
-        avatarUrl: user.avatarUrl,
+        role: (user.role as 'USER' | 'MODERATOR' | 'ADMIN') || 'USER',
+        avatarUrl: user.avatar_url,
+        streak: user.streak ?? 1,
+        bestStreak: user.best_streak ?? 1,
+        isAnonymous: user.email?.startsWith('anon_') || false,
       },
     };
   } catch (error) {

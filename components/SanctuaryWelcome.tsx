@@ -42,8 +42,8 @@ export function SanctuaryWelcome({ onEnter, showLanguageSelectorOnly = false }: 
   if (showLanguageSelectorOnly) {
     return (
       <PageTransition className="w-full max-w-lg mx-auto p-6">
-        <div className="card-geometric text-center border-[#5C8397]/20 shadow-xl bg-white/90 dark:bg-[#1A2027]/90 backdrop-blur-md">
-          <div className="w-12 h-12 rounded-full bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#5C8397] flex items-center justify-center mx-auto mb-4 text-xl">
+        <div className="card-geometric text-center border-primary/20 shadow-xl bg-white/90 dark:bg-[#1A2027]/90 backdrop-blur-md">
+          <div className="w-12 h-12 rounded-full bg-primary-subtle dark:bg-primary/20 text-primary flex items-center justify-center mx-auto mb-4 text-xl">
             🌿
           </div>
           <h2 className="text-2xl font-light text-slate-800 dark:text-slate-100 mb-2">
@@ -165,7 +165,7 @@ export function SanctuaryWelcome({ onEnter, showLanguageSelectorOnly = false }: 
         >
           <button
             onClick={handleContinue}
-            className="btn-primary mx-auto w-full max-w-sm py-4 text-base shadow-lg shadow-[#5C8397]/30 hover:scale-[1.01] transition-transform"
+            className="btn-primary mx-auto w-full max-w-sm py-4 text-base shadow-lg shadow-primary/30 hover:scale-[1.01] transition-transform"
           >
             <span>🌿</span>
             <span>{t('welcome.continue')}</span>
@@ -197,7 +197,7 @@ function LanguageButton({
       onClick={onClick}
       className={`w-full py-3.5 px-5 rounded-2xl flex items-center justify-between border transition-all duration-300 ${
         active
-          ? 'bg-[#E8F0F8] dark:bg-[#5C8397]/25 border-[#5C8397] text-slate-900 dark:text-white font-medium shadow-sm'
+          ? 'bg-primary-subtle dark:bg-primary/25 border-primary text-slate-900 dark:text-white font-medium shadow-sm'
           : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
       }`}
     >
@@ -207,7 +207,7 @@ function LanguageButton({
         </span>
         <span className="text-base">{nativeLabel}</span>
       </div>
-      {active && <span className="text-[#5C8397] dark:text-[#A1C2D4] text-lg">✓</span>}
+      {active && <span className="text-primary dark:text-[#A1C2D4] text-lg">✓</span>}
     </button>
   );
 }
@@ -230,7 +230,7 @@ function LanguageCard({
       onClick={onClick}
       className={`p-4 rounded-2xl border flex flex-col items-center justify-center text-center transition-all duration-300 ${
         active
-          ? 'bg-[#5C8397] text-white border-[#5C8397] shadow-md shadow-[#5C8397]/25 scale-[1.02]'
+          ? 'bg-primary text-white border-primary shadow-md shadow-primary/25 scale-[1.02]'
           : 'bg-slate-50/80 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
       }`}
     >

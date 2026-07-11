@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { useAuthStore } from './useAuthStore';
-import { getRecentMoodLogs, logMoodEntry, MoodLogData } from '@/lib/firestore-service';
+import { getRecentMoodLogs, logMoodEntry, MoodLogData } from '@/lib/db-service';
 
 export interface MoodLogItem {
   id: string;
@@ -17,7 +17,16 @@ interface WellnessState {
   streak: number;
   isLoading: boolean;
   fetchDashboardData: () => Promise<void>;
-  logMood: (score: number, intensity: number, tags: string[], notes?: string) => Promise<boolean>;
+  logMood: (
+    score: number, 
+    intensity: number, 
+    tags: string[], 
+    notes?: string,
+    energy?: number,
+    stress?: number,
+    anxiety?: number,
+    sleep?: number
+  ) => Promise<boolean>;
 }
 
 export const useWellnessStore = create<WellnessState>((set, get) => ({
@@ -56,12 +65,21 @@ export const useWellnessStore = create<WellnessState>((set, get) => ({
       set({ isLoading: false });
     }
   },
-  logMood: async (score, intensity, tags, notes) => {
+  logMood: async (score, intensity, tags, notes, energy, stress, anxiety, sleep) => {
     try {
       const user = useAuthStore.getState().user;
       if (!user?.id) return false;
 
-      const logId = await logMoodEntry(user.id, { moodScore: score, intensity, tags, notes });
+      const logId = await logMoodEntry(user.id, { 
+        moodScore: score, 
+        intensity, 
+        tags, 
+        notes,
+        energy,
+        stress,
+        anxiety,
+        sleep
+      });
       const newLog: MoodLogItem = {
         id: logId,
         moodScore: score,

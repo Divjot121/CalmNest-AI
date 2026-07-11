@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import AppSidebar from '@/components/AppSidebar';
 import { BreathingExercise } from '@/components/BreathingExercise';
 import { AmbiencePlayer } from '@/components/AmbiencePlayer';
@@ -8,9 +8,14 @@ import { PageTransition } from '@/components/PageTransition';
 import { useSanctuaryTranslation } from '@/lib/i18n/useSanctuaryTranslation';
 import { ChevronLeft, Compass } from 'lucide-react';
 import Link from 'next/link';
+import { useAmbientSoundStore } from '@/store/useAmbientSoundStore';
 
 export default function MeditationStudioPage() {
   const { t } = useSanctuaryTranslation();
+
+  useEffect(() => {
+    useAmbientSoundStore.getState().triggerRecommendation('meditation');
+  }, []);
 
   return (
     <AppSidebar>

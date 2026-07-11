@@ -50,7 +50,7 @@
 
 /* Buttons */
 .btn-primary {
-  @apply bg-[#5C8397] hover:bg-[#4B6F82] text-white font-medium text-sm rounded-xl px-5 py-2.5 shadow-2xs transition-all duration-200 ease-out active:scale-[0.98] flex items-center justify-center gap-2 select-none min-h-[40px];
+  @apply bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-xl px-5 py-2.5 shadow-2xs transition-all duration-200 ease-out active:scale-[0.98] flex items-center justify-center gap-2 select-none min-h-[40px];
 }
 
 .btn-secondary {
@@ -63,7 +63,7 @@
 
 /* Inputs & Forms */
 .input-minimal {
-  @apply w-full bg-white dark:bg-[#1E2128] border border-slate-200/80 dark:border-[#2B2F38] rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#5C8397]/20 focus:border-[#5C8397] transition-all duration-200;
+  @apply w-full bg-white dark:bg-[#1E2128] border border-slate-200/80 dark:border-[#2B2F38] rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200;
 }
 
 /* Chat Bubbles */
@@ -72,12 +72,12 @@
 }
 
 .chat-bubble-user {
-  @apply bg-[#5C8397] text-white rounded-2xl rounded-tr-xs p-4 md:p-5 shadow-2xs transition-all duration-200;
+  @apply bg-primary text-white rounded-2xl rounded-tr-xs p-4 md:p-5 shadow-2xs transition-all duration-200;
 }
 
 /* Badges & Pills */
 .badge-blue {
-  @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#436475] dark:text-[#A1C2D4] text-xs font-medium;
+  @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-subtle dark:bg-primary/20 text-primary-hover dark:text-primary-light text-xs font-medium;
 }
 
 .badge-emerald {
@@ -128,3 +128,120 @@ html.motion-style-reduced *::after {
     scroll-behavior: auto !important;
   }
 }
+
+/* High Contrast Mode CSS Overrides */
+html.theme-high-contrast {
+  --color-primary: #1e3a47;
+  --color-primary-hover: #0f1d24;
+  --color-primary-light: #5C8397;
+  --color-primary-subtle: #ffffff;
+  --color-secondary: #273e33;
+  --color-secondary-hover: #121e18;
+  --color-secondary-light: #6B907B;
+  --color-secondary-subtle: #ffffff;
+}
+
+html.theme-high-contrast body {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+html.theme-high-contrast.dark body {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+html.theme-high-contrast .card-minimal {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+  box-shadow: none !important;
+}
+
+html.theme-high-contrast.dark .card-minimal {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border: 2px solid #ffffff !important;
+  box-shadow: none !important;
+}
+
+html.theme-high-contrast .btn-primary,
+html.theme-high-contrast .btn-secondary {
+  border: 2px solid currentColor !important;
+  background-color: transparent !important;
+  color: currentColor !important;
+  font-weight: bold !important;
+  box-shadow: none !important;
+}
+
+html.theme-high-contrast .btn-primary:hover,
+html.theme-high-contrast .btn-secondary:hover {
+  background-color: currentColor !important;
+  color: #ffffff !important;
+}
+html.theme-high-contrast.dark .btn-primary:hover,
+html.theme-high-contrast.dark .btn-secondary:hover {
+  background-color: currentColor !important;
+  color: #000000 !important;
+}
+
+/* Layout Density Classes */
+html.layout-compact .card-minimal,
+html.layout-compact .card-subtle {
+  padding: 1rem !important;
+  border-radius: 12px !important;
+}
+
+html.layout-compact .py-12 {
+  padding-top: 1.5rem !important;
+  padding-bottom: 1.5rem !important;
+}
+
+html.layout-compact .py-10 {
+  padding-top: 1.25rem !important;
+  padding-bottom: 1.25rem !important;
+}
+
+html.layout-compact .py-8 {
+  padding-top: 1rem !important;
+  padding-bottom: 1rem !important;
+}
+
+html.layout-compact .py-6 {
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+}
+
+html.layout-compact .my-6 {
+  margin-top: 0.75rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+html.layout-compact .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.75rem !important;
+}
+
+html.layout-compact .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.5rem !important;
+}
+
+html.layout-compact .gap-6 {
+  gap: 0.75rem !important;
+}
+
+html.layout-compact .gap-4 {
+  gap: 0.5rem !important;
+}
+
+html.layout-compact h1 {
+  font-size: 1.5rem !important;
+}
+
+html.layout-compact h2 {
+  font-size: 1.25rem !important;
+}
+
+html.layout-compact h3 {
+  font-size: 1.1rem !important;
+}
+

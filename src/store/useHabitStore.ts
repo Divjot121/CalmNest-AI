@@ -5,8 +5,8 @@ import {
   createHabit,
   deleteHabit,
   getHabitCompletionsForDate,
-  toggleHabitCompletion as toggleFirestoreHabit
-} from '@/lib/firestore-service';
+  toggleHabitCompletion as toggleDbHabit
+} from '@/lib/db-service';
 
 export interface HabitItem {
   id: string;
@@ -132,7 +132,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
       set({ habits: updated });
 
       const todayStr = new Date().toISOString().split('T')[0];
-      await toggleFirestoreHabit(user.id, id, todayStr, newCompleted);
+      await toggleDbHabit(user.id, id, todayStr, newCompleted);
       return true;
     } catch (error) {
       return false;

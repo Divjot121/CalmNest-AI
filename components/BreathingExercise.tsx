@@ -6,6 +6,8 @@ import { useSanctuaryTranslation } from '@/lib/i18n/useSanctuaryTranslation';
 import { triggerGentleSanctuaryCelebration } from './SanctuaryConfetti';
 import { Play, Pause, Sparkles, Leaf } from 'lucide-react';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { saveWellnessSession } from '@/lib/db-service';
 
 export type BreathingTechnique = 'box' | '478' | 'deep' | 'relaxation';
 
@@ -31,9 +33,9 @@ function resolveDefaultTechnique(rhythm?: string): TechniqueInfo {
   if (rhythm === 'coherent') return TECHNIQUES[2]; // deep (5.5s in/out ≈ coherent)
   return TECHNIQUES[0]; // box
 }
-
 export function BreathingExercise({ onComplete }: { onComplete?: () => void }) {
   const { t } = useSanctuaryTranslation();
+  const { user } = useAuthStore();
   const { preferences } = useSettingsStore();
   const defaultTech = resolveDefaultTechnique(preferences.defaultBreathingRhythm);
   const [selectedTech, setSelectedTech] = useState<TechniqueInfo>(defaultTech);
@@ -41,6 +43,7 @@ export function BreathingExercise({ onComplete }: { onComplete?: () => void }) {
   const [phase, setPhase] = useState<'inhale' | 'holdIn' | 'exhale' | 'holdOut'>('inhale');
   const [secondsLeft, setSecondsLeft] = useState(defaultTech.inhale);
   const [cyclesCompleted, setCyclesCompleted] = useState(0);
+  const [activeSeconds, setActiveSeconds] = useState(0);
 
   const triggerHaptic = () => {
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -49,6 +52,31 @@ export function BreathingExercise({ onComplete }: { onComplete?: () => void }) {
       } catch (e) {}
     }
   };
+
+  // Track session duration and save when active state stops or unmounts
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isActive) {
+      timer = setInterval(() => {
+        setActiveSeconds(s => s + 1);
+      }, 1000);
+    } else {
+      if (activeSeconds >= 3 && user?.id) {
+        saveWellnessSession(user.id, {
+          type: 'BREATHING',
+          subType: selectedTech.id,
+          duration: activeSeconds,
+          completed: cyclesCompleted >= 1
+        }).catch(err => console.warn("Failed to log breathing session:", err));
+      }
+      setTimeout(() => {
+        setActiveSeconds(0);
+      }, 0);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isActive, user?.id, selectedTech.id, cyclesCompleted, activeSeconds]);
 
   useEffect(() => {
     if (!isActive) {
@@ -160,7 +188,7 @@ export function BreathingExercise({ onComplete }: { onComplete?: () => void }) {
             onClick={() => handleSelectTechnique(tech)}
             className={`px-4 py-2 rounded-xl text-xs font-medium transition-all ${
               selectedTech.id === tech.id
-                ? 'bg-[#5C8397] text-white shadow-2xs'
+                ? 'bg-primary text-white shadow-2xs'
                 : 'bg-slate-100 dark:bg-[#16181D] border border-slate-200/70 dark:border-[#2B2F38] text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-[#252932]'
             }`}
           >
@@ -183,7 +211,7 @@ export function BreathingExercise({ onComplete }: { onComplete?: () => void }) {
             duration: isActive ? getPhaseDuration() : 0.8,
             ease: phase === 'inhale' || phase === 'exhale' ? 'easeInOut' : 'linear',
           }}
-          className="w-52 h-52 rounded-full border border-dashed border-[#5C8397]/40 dark:border-[#8DA9B7]/30 flex items-center justify-center bg-slate-50/90 dark:bg-[#16181D]/90 shadow-2xs"
+          className="w-52 h-52 rounded-full border border-dashed border-primary/40 dark:border-primary-light/30 flex items-center justify-center bg-slate-50/90 dark:bg-[#16181D]/90 shadow-2xs"
         >
           {/* Inner lotus core */}
           <motion.div
@@ -195,14 +223,14 @@ export function BreathingExercise({ onComplete }: { onComplete?: () => void }) {
               scale: { duration: isActive ? getPhaseDuration() : 0.8, ease: 'easeInOut' },
               rotate: { duration: 30, repeat: Infinity, ease: 'linear' },
             }}
-            className="w-36 h-36 rounded-full bg-[#E8F0F8] dark:bg-[#5C8397]/20 flex flex-col items-center justify-center p-4 border border-[#5C8397]/20 dark:border-[#5C8397]/40"
+            className="w-36 h-36 rounded-full bg-primary-subtle dark:bg-primary/20 flex flex-col items-center justify-center p-4 border border-primary/20 dark:border-primary/40"
           >
             <span className="text-2xl mb-1">{isActive ? '🪷' : '🍃'}</span>
             <span className="text-xs font-medium text-slate-800 dark:text-slate-100 tracking-tight">
               {isActive ? getPhaseText() : (t('breathing.start') || 'Ready')}
             </span>
             {isActive && (
-              <span className="text-xl font-medium font-mono text-[#5C8397] dark:text-[#A1C2D4] mt-0.5">
+              <span className="text-xl font-medium font-mono text-primary dark:text-[#A1C2D4] mt-0.5">
                 {secondsLeft}s
               </span>
             )}
@@ -222,7 +250,7 @@ export function BreathingExercise({ onComplete }: { onComplete?: () => void }) {
             }
           }}
           className={`btn-primary px-8 py-3 text-sm min-w-[150px] ${
-            isActive ? 'bg-slate-700 hover:bg-slate-800 dark:bg-slate-600' : 'bg-[#5C8397] hover:bg-[#4B6F82]'
+            isActive ? 'bg-slate-700 hover:bg-slate-800 dark:bg-slate-600' : 'bg-primary hover:bg-[#4B6F82]'
           }`}
         >
           {isActive ? <Pause size={16} strokeWidth={1.75} /> : <Play size={16} strokeWidth={1.75} />}

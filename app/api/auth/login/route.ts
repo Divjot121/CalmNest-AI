@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { prisma } from '@/lib/db';
-import { verifyPassword } from '@/lib/auth';
-import { signAccessToken, signRefreshToken } from '@/lib/jwt';
+import { supabase } from '@/lib/supabase';
 import { checkRateLimit } from '@/lib/ratelimit';
 
 const loginSchema = z.object({
@@ -27,21 +25,30 @@ export async function POST(req: NextRequest) {
     const { email, password } = validation.data;
     const normalizedEmail = email.toLowerCase();
 
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-    if (!user) {
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password: password,
+    });
+
+    if (authError || !authData.user || !authData.session) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
-    const isMatch = await verifyPassword(password, user.passwordHash);
-    if (!isMatch) {
-      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
-    }
+    const userId = authData.user.id;
 
-    // Check check-in streak
+    // Fetch profile from profiles table
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
     const now = new Date();
-    let newStreak = user.streak;
-    if (user.lastCheckIn) {
-      const diffHours = (now.getTime() - new Date(user.lastCheckIn).getTime()) / (1000 * 60 * 60);
+    let newStreak = userProfile?.streak || 1;
+    let bestStreak = userProfile?.best_streak || 1;
+
+    if (userProfile?.last_check_in) {
+      const diffHours = (now.getTime() - new Date(userProfile.last_check_in).getTime()) / (1000 * 60 * 60);
       if (diffHours >= 20 && diffHours <= 48) {
         newStreak += 1;
       } else if (diffHours > 48) {
@@ -50,57 +57,30 @@ export async function POST(req: NextRequest) {
     } else {
       newStreak = 1;
     }
+    bestStreak = Math.max(bestStreak, newStreak);
 
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
+    await supabase
+      .from('profiles')
+      .update({
         streak: newStreak,
-        bestStreak: Math.max(user.bestStreak, newStreak),
-        lastCheckIn: now,
-      },
-    });
+        best_streak: bestStreak,
+        last_check_in: now.toISOString(),
+      })
+      .eq('id', userId);
 
-    const tokenPayload = { userId: user.id, email: user.email, role: user.role };
-    const accessToken = await signAccessToken(tokenPayload);
-    const refreshToken = await signRefreshToken({ userId: user.id });
-
-    await prisma.session.create({
-      data: {
-        userId: user.id,
-        token: accessToken,
-        deviceInfo: req.headers.get('user-agent') || 'Browser',
-        ipAddress: ip,
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-      },
-    });
-
-    await prisma.refreshToken.create({
-      data: {
-        userId: user.id,
-        token: refreshToken,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'LOGIN',
-        details: 'User logged in successfully',
-        ipAddress: ip,
-      },
-    });
+    const accessToken = authData.session.access_token;
+    const refreshToken = authData.session.refresh_token;
 
     const res = NextResponse.json({
       success: true,
       user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        role: updatedUser.role,
-        avatarUrl: updatedUser.avatarUrl,
-        streak: updatedUser.streak,
-        bestStreak: updatedUser.bestStreak,
+        id: userId,
+        email: userProfile?.email || normalizedEmail,
+        name: userProfile?.name || authData.user.user_metadata?.name || 'User',
+        role: userProfile?.role || 'USER',
+        avatarUrl: userProfile?.avatar_url || null,
+        streak: newStreak,
+        bestStreak: bestStreak,
       },
       token: accessToken,
     });
@@ -110,7 +90,7 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 15 * 60,
+      maxAge: 60 * 60 * 24 * 7,
     });
 
     res.cookies.set('calmnest_refresh', refreshToken, {
@@ -118,7 +98,7 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 7 * 24 * 60 * 60,
+      maxAge: 60 * 60 * 24 * 30,
     });
 
     return res;

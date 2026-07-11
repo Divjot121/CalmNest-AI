@@ -34,12 +34,14 @@ import { useSanctuaryTranslation, SupportedLanguage } from '@/lib/i18n/useSanctu
 import { SanctuaryWelcome } from '@/components/SanctuaryWelcome';
 import { AmbiencePlayer } from '@/components/AmbiencePlayer';
 import { triggerGentleSanctuaryCelebration } from '@/components/SanctuaryConfetti';
+import { getWellnessSessions } from '@/lib/db-service';
+import { useAmbientSoundStore } from '@/store/useAmbientSoundStore';
 
 const moodOptions = [
   { score: 1, label: 'Struggling', icon: '😔', color: 'bg-rose-50/80 border-rose-200/80 text-rose-700 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300' },
   { score: 2, label: 'Low', icon: '😕', color: 'bg-amber-50/80 border-amber-200/80 text-amber-700 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300' },
   { score: 3, label: 'Okay', icon: '😐', color: 'bg-slate-50/80 border-slate-200/80 text-slate-700 dark:bg-[#252932] dark:border-[#2B2F38] dark:text-slate-300' },
-  { score: 4, label: 'Good', icon: '🙂', color: 'bg-[#E8F0F8] border-[#8DA9B7]/60 text-[#436475] dark:bg-[#5C8397]/20 dark:border-[#5C8397]/40 dark:text-[#A1C2D4]' },
+  { score: 4, label: 'Good', icon: '🙂', color: 'bg-primary-subtle border-primary-light/60 text-primary-hover dark:bg-primary/20 dark:border-primary/40 dark:text-[#A1C2D4]' },
   { score: 5, label: 'Great', icon: '😄', color: 'bg-[#E6EFEA] border-[#6B907B]/60 text-[#4A725D] dark:bg-[#6B907B]/20 dark:border-[#6B907B]/40 dark:text-[#A8C8B5]' },
 ];
 
@@ -51,12 +53,21 @@ export default function DashboardPage() {
   const { habits, fetchHabits, toggleCompletion, isLoading: habitsLoading } = useHabitStore();
   const { createNewConversation } = useTherapistStore();
   const { openSettings, preferences } = useSettingsStore();
+  const [primaryColor, setPrimaryColor] = useState('#5C8397');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const val = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim();
+      if (val) setPrimaryColor(val);
+    }
+  }, [preferences.accentColor]);
 
   const [isOnboarded, setIsOnboarded] = useState(true);
   const [selectedMoodScore, setSelectedMoodScore] = useState<number | null>(null);
   const [isLoggingMood, setIsLoggingMood] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [greeting, setGreeting] = useState('Good day');
+  const [sessionsCount, setSessionsCount] = useState(0);
 
   useEffect(() => {
     const checkOnboarded = localStorage.getItem('calmnest_onboarded');
@@ -72,11 +83,18 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (!authLoading) {
+    useAmbientSoundStore.getState().triggerRecommendation('focus');
+  }, []);
+
+  useEffect(() => {
+    if (!authLoading && user?.id) {
       fetchDashboardData();
       fetchHabits();
+      getWellnessSessions(user.id).then(sessions => {
+        setSessionsCount(sessions.length);
+      }).catch(() => {});
     }
-  }, [authLoading, fetchDashboardData, fetchHabits]);
+  }, [authLoading, user?.id, fetchDashboardData, fetchHabits]);
 
   const handleQuickMoodSubmit = async (score: number) => {
     setIsLoggingMood(true);
@@ -142,7 +160,7 @@ export default function DashboardPage() {
               className="btn-secondary py-2 px-3 text-xs gap-2"
               title="Open Sanctuary Settings"
             >
-              <Settings size={14} strokeWidth={1.75} className="text-[#5C8397] dark:text-[#A1C2D4]" />
+              <Settings size={14} strokeWidth={1.75} className="text-primary dark:text-[#A1C2D4]" />
               <span className="hidden sm:inline">Preferences</span>
             </button>
 
@@ -153,7 +171,7 @@ export default function DashboardPage() {
                 className="btn-secondary py-2 px-3 text-xs gap-2"
                 aria-label="Change language"
               >
-                <Globe size={14} strokeWidth={1.75} className="text-[#5C8397] dark:text-[#A1C2D4]" />
+                <Globe size={14} strokeWidth={1.75} className="text-primary dark:text-[#A1C2D4]" />
                 <span className="uppercase font-mono font-medium">{currentLanguage}</span>
               </button>
 
@@ -178,7 +196,7 @@ export default function DashboardPage() {
                           setShowLangMenu(false);
                         }}
                         className={`w-full text-left px-3.5 py-2 text-xs flex items-center justify-between transition-colors ${
-                          currentLanguage === lang.code ? 'bg-[#5C8397]/15 text-[#5C8397] dark:text-[#A1C2D4] font-medium' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#252932]'
+                          currentLanguage === lang.code ? 'bg-primary/15 text-primary dark:text-[#A1C2D4] font-medium' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#252932]'
                         }`}
                       >
                         <span>{lang.label}</span>
@@ -218,7 +236,7 @@ export default function DashboardPage() {
               </p>
             </div>
             {todayMood && (
-              <Link href="/mood" className="text-xs font-medium text-[#5C8397] dark:text-[#A1C2D4] hover:underline flex items-center gap-1 self-start sm:self-auto">
+              <Link href="/mood" className="text-xs font-medium text-primary dark:text-[#A1C2D4] hover:underline flex items-center gap-1 self-start sm:self-auto">
                 <span>View Full Mood Journal</span>
                 <ArrowRight size={13} />
               </Link>
@@ -235,7 +253,7 @@ export default function DashboardPage() {
                   onClick={() => handleQuickMoodSubmit(opt.score)}
                   className={`p-3.5 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all duration-200 ${opt.color} ${
                     isSelected 
-                      ? 'ring-2 ring-[#5C8397] dark:ring-[#8DA9B7] scale-[1.02] shadow-xs font-medium' 
+                      ? 'ring-2 ring-primary dark:ring-[#8DA9B7] scale-[1.02] shadow-xs font-medium' 
                       : 'hover:border-slate-300 dark:hover:border-slate-600 opacity-90 hover:opacity-100'
                   }`}
                 >
@@ -275,6 +293,11 @@ export default function DashboardPage() {
                   <span className="text-xs text-slate-600 dark:text-slate-300">Sanctuary Streak</span>
                   <span className="text-xs font-mono font-medium text-amber-600 dark:text-amber-400">{activeStreak} Days</span>
                 </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-[#252932]/60 border border-slate-200/50 dark:border-[#2B2F38]">
+                  <span className="text-xs text-slate-600 dark:text-slate-300">Wellness Sessions</span>
+                  <span className="text-xs font-mono font-medium text-slate-900 dark:text-slate-100">{sessionsCount} Completed</span>
+                </div>
               </div>
             </div>
 
@@ -289,19 +312,19 @@ export default function DashboardPage() {
           {/* Quick Shortcuts */}
           <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
             {preferences.dashboardShowQuickChat !== false && (
-            <div onClick={handleStartTherapySession} className="card-minimal cursor-pointer group flex flex-col justify-between hover:border-[#5C8397]/50 transition-all">
+            <div onClick={handleStartTherapySession} className="card-minimal cursor-pointer group flex flex-col justify-between hover:border-primary/50 transition-all">
               <div>
-                <div className="w-9 h-9 bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] rounded-xl flex items-center justify-center mb-3">
+                <div className="w-9 h-9 bg-primary-subtle dark:bg-primary/20 text-primary dark:text-[#A1C2D4] rounded-xl flex items-center justify-center mb-3">
                   <MessageSquareHeart size={18} strokeWidth={1.75} />
                 </div>
-                <h4 className="font-medium text-sm text-slate-900 dark:text-slate-100 group-hover:text-[#5C8397] dark:group-hover:text-[#A1C2D4] transition-colors">
+                <h4 className="font-medium text-sm text-slate-900 dark:text-slate-100 group-hover:text-primary dark:group-hover:text-[#A1C2D4] transition-colors">
                   AI Therapist Session
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                   Start an empathetic, non-judgmental dialogue with your AI wellness companion right now.
                 </p>
               </div>
-              <div className="flex items-center gap-1.5 text-xs font-medium text-[#5C8397] dark:text-[#A1C2D4] pt-4">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-primary dark:text-[#A1C2D4] pt-4">
                 <span>Begin Chat</span>
                 <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />
               </div>
@@ -389,8 +412,8 @@ export default function DashboardPage() {
                   <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorMood" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#5C8397" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#5C8397" stopOpacity={0.0} />
+                        <stop offset="5%" stopColor={primaryColor} stopOpacity={0.25} />
+                        <stop offset="95%" stopColor={primaryColor} stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
                     <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
@@ -398,7 +421,7 @@ export default function DashboardPage() {
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1E2128', border: 'none', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
                     />
-                    <Area type="monotone" dataKey="mood" stroke="#5C8397" strokeWidth={2.5} fillOpacity={1} fill="url(#colorMood)" />
+                    <Area type="monotone" dataKey="mood" stroke={primaryColor} strokeWidth={2.5} fillOpacity={1} fill="url(#colorMood)" />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (

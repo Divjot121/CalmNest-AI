@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { prisma } from '@/lib/db';
-import { hashPassword } from '@/lib/auth';
-import { signAccessToken, signRefreshToken } from '@/lib/jwt';
+import { supabase } from '@/lib/supabase';
 import { checkRateLimit } from '@/lib/ratelimit';
 
 const signupSchema = z.object({
@@ -28,110 +26,92 @@ export async function POST(req: NextRequest) {
     const { email, password, name } = validation.data;
     const normalizedEmail = email.toLowerCase();
 
-    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-    if (existing) {
-      return NextResponse.json({ error: 'User already exists with this email address' }, { status: 409 });
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password: password,
+      options: {
+        data: { name },
+      },
+    });
+
+    if (authError || !authData.user) {
+      return NextResponse.json({ error: authError?.message || 'Could not register user' }, { status: 400 });
     }
 
-    const passwordHash = await hashPassword(password);
-    const user = await prisma.user.create({
-      data: {
-        email: normalizedEmail,
-        passwordHash,
-        name,
-        role: 'USER',
-        isVerified: true, // Auto-verify in demo/enterprise free deployment
-        streak: 1,
-        bestStreak: 1,
-        lastCheckIn: new Date(),
-      },
+    const userId = authData.user.id;
+
+    // Create profile in public schema
+    await supabase.from('profiles').upsert({
+      id: userId,
+      email: normalizedEmail,
+      name,
+      role: 'USER',
+      streak: 1,
+      best_streak: 1,
+      last_check_in: new Date().toISOString(),
     });
 
-    // Create default welcome conversation and initial habits
-    await prisma.conversation.create({
-      data: {
-        userId: user.id,
-        title: 'Welcome to CalmNest',
-        messages: {
-          create: [
-            {
-              role: 'assistant',
-              content: `Hello ${user.name}! Welcome to CalmNest, your AI-powered mental wellness safe space. How are you feeling right now?`,
-              sentiment: 'Hopeful',
-            },
-          ],
-        },
-      },
-    });
+    // Create welcome conversation
+    const { data: conv } = await supabase.from('conversations').insert({
+      user_id: userId,
+      anon_uuid: userId,
+      title: 'Welcome to CalmNest',
+      risk_detected: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).select('id').single();
 
-    await prisma.habit.createMany({
-      data: [
-        { userId: user.id, name: 'Daily 10m Mindful Walk', icon: '🚶‍♂️', frequency: 'DAILY', color: '#10b981' },
-        { userId: user.id, name: 'Evening Gratitude Journal', icon: '📓', frequency: 'DAILY', color: '#6366f1' },
-        { userId: user.id, name: '5m Deep Breathing', icon: '🧘', frequency: 'DAILY', color: '#3b82f6' },
-      ],
-    });
+    if (conv?.id) {
+      await supabase.from('messages').insert({
+        conversation_id: conv.id,
+        role: 'assistant',
+        content: `Hello ${name}! Welcome to CalmNest, your AI-powered mental wellness safe space. How are you feeling right now?`,
+        sentiment: 'Hopeful',
+        created_at: new Date().toISOString(),
+      });
+    }
 
-    const tokenPayload = { userId: user.id, email: user.email, role: user.role };
-    const accessToken = await signAccessToken(tokenPayload);
-    const refreshToken = await signRefreshToken({ userId: user.id });
+    // Create default habits
+    await supabase.from('habits').insert([
+      { user_id: userId, anon_uuid: userId, name: 'Daily 10m Mindful Walk', icon: '🚶‍♂️', frequency: 'DAILY', color: '#10b981', streak: 0, best_streak: 0 },
+      { user_id: userId, anon_uuid: userId, name: 'Evening Gratitude Journal', icon: '📓', frequency: 'DAILY', color: '#6366f1', streak: 0, best_streak: 0 },
+      { user_id: userId, anon_uuid: userId, name: '5m Deep Breathing', icon: '🧘', frequency: 'DAILY', color: '#3b82f6', streak: 0, best_streak: 0 },
+    ]);
 
-    await prisma.session.create({
-      data: {
-        userId: user.id,
-        token: accessToken,
-        deviceInfo: req.headers.get('user-agent') || 'Browser',
-        ipAddress: ip,
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-      },
-    });
-
-    await prisma.refreshToken.create({
-      data: {
-        userId: user.id,
-        token: refreshToken,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'SIGNUP',
-        details: 'User registered account',
-        ipAddress: ip,
-      },
-    });
+    const accessToken = authData.session?.access_token || 'pending_auth';
+    const refreshToken = authData.session?.refresh_token || 'pending_auth';
 
     const res = NextResponse.json({
       success: true,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        avatarUrl: user.avatarUrl,
-        streak: user.streak,
-        bestStreak: user.bestStreak,
+        id: userId,
+        email: normalizedEmail,
+        name,
+        role: 'USER',
+        avatarUrl: null,
+        streak: 1,
+        bestStreak: 1,
       },
       token: accessToken,
     });
 
-    res.cookies.set('calmnest_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 15 * 60,
-    });
+    if (authData.session) {
+      res.cookies.set('calmnest_token', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7,
+      });
 
-    res.cookies.set('calmnest_refresh', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60,
-    });
+      res.cookies.set('calmnest_refresh', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30,
+      });
+    }
 
     return res;
   } catch (error: any) {

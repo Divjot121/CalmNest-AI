@@ -1,28 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthSession } from '@/lib/auth';
-import { prisma } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(req: NextRequest) {
   try {
     const session = await getAuthSession(req);
-    if (!session) {
+    if (!session?.user?.id) {
       return NextResponse.json({ user: null }, { status: 200 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        avatarUrl: true,
-        streak: true,
-        bestStreak: true,
-      },
-    });
+    const { data: user, error } = await supabase
+      .from('profiles')
+      .select('id, email, name, role, avatar_url, streak, best_streak')
+      .eq('id', session.user.id)
+      .single();
 
-    if (!user) {
+    if (error || !user) {
       return NextResponse.json({ user: null }, { status: 200 });
     }
 
@@ -31,10 +24,10 @@ export async function GET(req: NextRequest) {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
-        avatarUrl: user.avatarUrl,
-        streak: user.streak,
-        bestStreak: user.bestStreak,
+        role: user.role || 'USER',
+        avatarUrl: user.avatar_url,
+        streak: user.streak ?? 1,
+        bestStreak: user.best_streak ?? 1,
       },
     }, { status: 200 });
   } catch (error) {

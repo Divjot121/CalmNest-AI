@@ -19,10 +19,12 @@ import {
   Leaf,
   Edit2
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 import AppSidebar from '@/components/AppSidebar';
 import { useAuthStore } from '@/store/useAuthStore';
-import { getJournalEntries, saveJournalEntry, updateJournalEntry, deleteJournalEntry, JournalEntryData } from '@/lib/firestore-service';
+import { getJournalEntries, saveJournalEntry, updateJournalEntry, deleteJournalEntry, JournalEntryData } from '@/lib/db-service';
 import { triggerGentleSanctuaryCelebration } from '@/components/SanctuaryConfetti';
+import { useAmbientSoundStore } from '@/store/useAmbientSoundStore';
 
 const moodTags = ['Hopeful', 'Calm', 'Reflective', 'Anxious', 'Processing', 'Overwhelmed', 'Grateful'];
 
@@ -40,7 +42,11 @@ export default function JournalPage() {
   const [moodTag, setMoodTag] = useState('Reflective');
   const [customTagInput, setCustomTagInput] = useState('');
   const [customTags, setCustomTags] = useState<string[]>(['Mindfulness']);
+  const [imageUrl, setImageUrl] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDraft, setIsDraft] = useState(true);
+  const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const loadEntries = React.useCallback(async () => {
     if (!user?.id) return;
@@ -65,6 +71,10 @@ export default function JournalPage() {
     }
   }, [user, authLoading, loadEntries]);
 
+  useEffect(() => {
+    useAmbientSoundStore.getState().triggerRecommendation('journal');
+  }, []);
+
   const handleOpenModal = (entry?: JournalEntryData) => {
     if (entry && entry.id) {
       setEditingEntryId(entry.id);
@@ -72,13 +82,18 @@ export default function JournalPage() {
       setContent(entry.content);
       setMoodTag(entry.moodTag || 'Reflective');
       setCustomTags(entry.customTags || []);
+      setImageUrl(entry.imageUrl || '');
+      setIsDraft(entry.isDraft ?? false);
     } else {
       setEditingEntryId(null);
       setTitle('');
       setContent('');
       setMoodTag('Reflective');
       setCustomTags(['Mindfulness']);
+      setImageUrl('');
+      setIsDraft(true);
     }
+    setAutosaveState('idle');
     setShowModal(true);
   };
 
@@ -96,6 +111,30 @@ export default function JournalPage() {
     setCustomTags(customTags.filter(t => t !== tag));
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.url) {
+        setImageUrl(data.url);
+      } else {
+        alert(data.error || 'Failed to upload image');
+      }
+    } catch (err) {
+      alert('Upload failed. Check your connection.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim() || !user?.id) return;
@@ -107,6 +146,7 @@ export default function JournalPage() {
         content,
         moodTag,
         customTags,
+        imageUrl,
         isDraft: false
       });
       setEntries(entries.map(entry => entry.id === editingEntryId ? {
@@ -115,6 +155,8 @@ export default function JournalPage() {
         content,
         moodTag,
         customTags,
+        imageUrl,
+        isDraft: false,
         updatedAt: new Date().toISOString()
       } : entry));
     } else {
@@ -123,6 +165,7 @@ export default function JournalPage() {
         content,
         moodTag,
         customTags,
+        imageUrl,
         isDraft: false
       });
       const newEntry: JournalEntryData = {
@@ -132,6 +175,7 @@ export default function JournalPage() {
         content,
         moodTag,
         customTags,
+        imageUrl,
         isDraft: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -143,9 +187,74 @@ export default function JournalPage() {
     setEditingEntryId(null);
     setTitle('');
     setContent('');
+    setImageUrl('');
     setCustomTags(['Mindfulness']);
+    setAutosaveState('idle');
     triggerGentleSanctuaryCelebration('petals');
   };
+
+  // Debounced Autosave draft logic
+  const tagsKey = customTags.join(',');
+  useEffect(() => {
+    if (!showModal || !user?.id || !title.trim() || !content.trim() || !isDraft) {
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      setAutosaveState('saving');
+      const resolvedTags = tagsKey ? tagsKey.split(',') : [];
+      try {
+        if (editingEntryId) {
+          await updateJournalEntry(editingEntryId, {
+            title,
+            content,
+            moodTag,
+            customTags: resolvedTags,
+            imageUrl,
+            isDraft: true
+          });
+          setEntries(current => current.map(e => e.id === editingEntryId ? {
+            ...e,
+            title,
+            content,
+            moodTag,
+            customTags: resolvedTags,
+            imageUrl,
+            isDraft: true,
+            updatedAt: new Date().toISOString()
+          } : e));
+        } else {
+          const newId = await saveJournalEntry(user.id, {
+            title,
+            content,
+            moodTag,
+            customTags: resolvedTags,
+            imageUrl,
+            isDraft: true
+          });
+          setEditingEntryId(newId);
+          const newEntry: JournalEntryData = {
+            id: newId,
+            userId: user.id,
+            title,
+            content,
+            moodTag,
+            customTags: resolvedTags,
+            imageUrl,
+            isDraft: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          setEntries(current => [newEntry, ...current]);
+        }
+        setAutosaveState('saved');
+      } catch (err) {
+        setAutosaveState('error');
+      }
+    }, 2000);
+
+    return () => clearTimeout(delayDebounce);
+  }, [title, content, moodTag, tagsKey, imageUrl, showModal, user?.id, isDraft, editingEntryId]);
 
   const handleDelete = async (id: string) => {
     await deleteJournalEntry(id);
@@ -153,7 +262,7 @@ export default function JournalPage() {
   };
 
   const handleExportMd = (entry: JournalEntryData) => {
-    const mdContent = `# ${entry.title}\n**Date:** ${new Date(entry.createdAt).toLocaleString()}\n**Mood:** ${entry.moodTag}\n**Tags:** ${entry.customTags.join(', ')}\n\n---\n\n${entry.content}`;
+    const mdContent = `# ${entry.title}\n**Date:** ${new Date(entry.createdAt).toLocaleString()}\n**Mood:** ${entry.moodTag}\n**Tags:** ${entry.customTags.join(', ')}\n${entry.imageUrl ? `**Image:** ${entry.imageUrl}\n` : ''}\n---\n\n${entry.content}`;
     const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -162,6 +271,34 @@ export default function JournalPage() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  const handleExportPdf = (entry: JournalEntryData) => {
+    const doc = new jsPDF();
+    
+    // Set Header
+    doc.setFontSize(22);
+    doc.setTextColor(92, 131, 151); // primary color #5C8397
+    doc.text(entry.title, 20, 30);
+    
+    // Metadata
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Date: ${new Date(entry.createdAt).toLocaleString()}`, 20, 40);
+    doc.text(`Mood: ${entry.moodTag || 'Reflective'}`, 20, 46);
+    doc.text(`Tags: ${entry.customTags.join(', ')}`, 20, 52);
+    
+    // Horizontal rule
+    doc.setLineWidth(0.5);
+    doc.line(20, 56, 190, 56);
+    
+    // Body Text
+    doc.setFontSize(12);
+    doc.setTextColor(50);
+    const splitText = doc.splitTextToSize(entry.content, 170);
+    doc.text(splitText, 20, 66);
+    
+    doc.save(`${entry.title.replace(/\s+/g, '_').toLowerCase()}.pdf`);
   };
 
   const filteredEntries = entries.filter(e => {
@@ -215,7 +352,7 @@ export default function JournalPage() {
               onClick={() => setSelectedTag(null)}
               className={`px-3 py-1.5 rounded-xl text-xs font-normal transition-all shrink-0 ${
                 selectedTag === null
-                  ? 'bg-[#5C8397] text-white shadow-2xs font-medium'
+                  ? 'bg-primary text-white shadow-2xs font-medium'
                   : 'bg-slate-100 dark:bg-[#16181D] border border-slate-200/70 dark:border-[#2B2F38] text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-[#252932]'
               }`}
             >
@@ -227,7 +364,7 @@ export default function JournalPage() {
                 onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-normal transition-all shrink-0 ${
                   selectedTag === tag
-                    ? 'bg-[#5C8397] text-white shadow-2xs font-medium'
+                    ? 'bg-primary text-white shadow-2xs font-medium'
                     : 'bg-slate-100 dark:bg-[#16181D] border border-slate-200/70 dark:border-[#2B2F38] text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-[#252932]'
                 }`}
               >
@@ -240,11 +377,11 @@ export default function JournalPage() {
         {/* Entries Grid */}
         {isLoading ? (
           <div className="py-20 flex justify-center">
-            <Loader2 className="animate-spin text-[#5C8397]" size={28} />
+            <Loader2 className="animate-spin text-primary" size={28} />
           </div>
         ) : filteredEntries.length === 0 ? (
           <div className="card-minimal text-center py-16">
-            <div className="w-12 h-12 bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-2xs">
+            <div className="w-12 h-12 bg-primary-subtle dark:bg-primary/20 text-primary dark:text-[#A1C2D4] rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-2xs">
               <BookOpen size={22} strokeWidth={1.75} />
             </div>
             <h3 className="font-medium text-base text-slate-900 dark:text-slate-100 mb-1">No journal entries found</h3>
@@ -265,23 +402,37 @@ export default function JournalPage() {
                 key={entry.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="card-minimal flex flex-col justify-between group hover:border-[#5C8397]/40 transition-all"
+                className="card-minimal flex flex-col justify-between group hover:border-primary/40 transition-all"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="px-2.5 py-1 bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#436475] dark:text-[#A1C2D4] text-[11px] font-medium rounded-lg border border-[#8DA9B7]/40 dark:border-[#5C8397]/40 flex items-center gap-1">
-                      <Smile size={12} />
-                      <span>{entry.moodTag || 'Reflective'}</span>
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 bg-primary-subtle dark:bg-primary/20 text-primary-hover dark:text-[#A1C2D4] text-[11px] font-medium rounded-lg border border-primary-light/40 dark:border-primary/40 flex items-center gap-1">
+                        <Smile size={12} />
+                        <span>{entry.moodTag || 'Reflective'}</span>
+                      </span>
+                      {entry.isDraft && (
+                        <span className="px-2 py-0.5 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 text-[10px] font-semibold rounded-md border border-amber-200 dark:border-amber-900/50">
+                          Draft
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs font-mono text-slate-400 dark:text-slate-500 flex items-center gap-1">
                       <Calendar size={12} />
                       <span>{new Date(entry.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                     </span>
                   </div>
 
-                  <h3 className="font-medium text-base text-slate-900 dark:text-slate-100 mb-2 group-hover:text-[#5C8397] dark:group-hover:text-[#A1C2D4] transition-colors">
+                  <h3 className="font-medium text-base text-slate-900 dark:text-slate-100 mb-2 group-hover:text-primary dark:group-hover:text-[#A1C2D4] transition-colors">
                     {entry.title}
                   </h3>
+
+                  {entry.imageUrl && (
+                    <div className="mb-3 overflow-hidden rounded-xl border border-slate-200/50 dark:border-[#2B2F38]">
+                      <img src={entry.imageUrl} alt={entry.title} className="w-full h-40 object-cover" />
+                    </div>
+                  )}
+
                   <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-4 whitespace-pre-wrap mb-4 font-normal">
                     {entry.content}
                   </p>
@@ -314,6 +465,13 @@ export default function JournalPage() {
                       className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#252932] rounded-lg transition-colors"
                     >
                       <Download size={15} strokeWidth={1.75} />
+                    </button>
+                    <button
+                      onClick={() => handleExportPdf(entry)}
+                      title="Export as PDF"
+                      className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#252932] rounded-lg transition-colors"
+                    >
+                      <FileText size={15} strokeWidth={1.75} />
                     </button>
                     <button
                       onClick={() => entry.id && handleDelete(entry.id)}
@@ -398,7 +556,7 @@ export default function JournalPage() {
                   {customTags.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {customTags.map(t => (
-                        <span key={t} className="px-2.5 py-1 bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#436475] dark:text-[#A1C2D4] border border-[#8DA9B7]/40 dark:border-[#5C8397]/40 rounded-lg text-[11px] font-mono flex items-center gap-1.5">
+                        <span key={t} className="px-2.5 py-1 bg-primary-subtle dark:bg-primary/20 text-primary-hover dark:text-[#A1C2D4] border border-primary-light/40 dark:border-primary/40 rounded-lg text-[11px] font-mono flex items-center gap-1.5">
                           <span>#{t}</span>
                           <button type="button" onClick={() => handleRemoveTag(t)} className="hover:text-rose-600">
                             <X size={12} />
@@ -408,11 +566,44 @@ export default function JournalPage() {
                     </div>
                   )}
 
+                  {/* Image Attachment Upload */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Image Attachment</label>
+                    <div className="flex items-center gap-4">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        id="journal-image-file"
+                      />
+                      <label
+                        htmlFor="journal-image-file"
+                        className="btn-secondary px-4 py-2 text-xs cursor-pointer flex items-center gap-1.5"
+                      >
+                        {isUploading ? <Loader2 size={13} className="animate-spin text-primary" /> : <Tag size={13} />}
+                        <span>{imageUrl ? 'Change Image' : 'Add Image'}</span>
+                      </label>
+                      {imageUrl && (
+                        <div className="flex items-center gap-2">
+                          <img src={imageUrl} alt="Attachment" className="w-12 h-12 object-cover rounded-lg border border-slate-200 dark:border-[#2B2F38]" />
+                          <button
+                            type="button"
+                            onClick={() => setImageUrl('')}
+                            className="text-xs text-rose-500 hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Your Reflection</label>
                     <textarea
                       required
-                      rows={6}
+                      rows={5}
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       placeholder="Write freely without judgment. Your words are private..."
@@ -421,6 +612,11 @@ export default function JournalPage() {
                   </div>
 
                   <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200/60 dark:border-[#2B2F38]">
+                    <div className="flex items-center gap-2 mr-auto text-xs text-slate-400">
+                      {autosaveState === 'saving' && <span className="flex items-center gap-1"><Loader2 size={12} className="animate-spin text-primary" /> Saving draft...</span>}
+                      {autosaveState === 'saved' && <span className="text-[#6B907B] font-medium">✓ Draft autosaved</span>}
+                      {autosaveState === 'error' && <span className="text-rose-500">⚠ Autosave failed</span>}
+                    </div>
                     <button
                       type="button"
                       onClick={() => setShowModal(false)}

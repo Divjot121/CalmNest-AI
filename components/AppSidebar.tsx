@@ -18,12 +18,17 @@ import {
   Menu,
   X,
   Settings,
-  Sparkles
+  Sparkles,
+  Search
 } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useSanctuaryTranslation } from '@/lib/i18n/useSanctuaryTranslation';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import SettingsModal from '@/components/SettingsModal';
+import { GlobalAudioPlayer } from '@/components/GlobalAudioPlayer';
+import { initializeUserCollections } from '@/lib/db-service';
+import GlobalSearchModal from '@/components/GlobalSearchModal';
+import NotificationDropdown from '@/components/NotificationDropdown';
 
 export default function AppSidebar({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -33,11 +38,29 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
   const { openSettings, initDomStyles } = useSettingsStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showSosModal, setShowSosModal] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   useEffect(() => {
     checkAuth();
     initDomStyles();
   }, [checkAuth, initDomStyles]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (user?.id) {
+      initializeUserCollections(user.id);
+    }
+  }, [user]);
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'MODERATOR';
 
@@ -56,12 +79,20 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
       {/* Mobile Header */}
       <header className="md:hidden bg-white/90 dark:bg-[#1E2128]/90 backdrop-blur-md border-b border-slate-200/70 dark:border-[#2B2F38] px-4 py-3 flex items-center justify-between sticky top-0 z-40">
         <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-[#5C8397] rounded-xl flex items-center justify-center text-white shadow-2xs">
+          <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center text-white shadow-2xs">
             <Sparkles size={16} />
           </div>
           <span className="font-medium tracking-tight text-base text-slate-900 dark:text-slate-100">CalmNest</span>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setIsSearchOpen(true)}
+            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#252932] rounded-xl transition-colors"
+            title="Search"
+          >
+            <Search size={18} strokeWidth={1.75} />
+          </button>
+          <NotificationDropdown />
           <button
             onClick={() => openSettings()}
             className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#252932] rounded-xl transition-colors"
@@ -117,7 +148,7 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
                       onClick={() => setMobileOpen(false)}
                       className={`flex items-center justify-between px-3.5 py-3 rounded-xl text-sm transition-all duration-150 ${
                         active
-                          ? 'bg-[#5C8397]/12 dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] font-medium'
+                          ? 'bg-primary/12 dark:bg-primary/20 text-primary dark:text-[#A1C2D4] font-medium'
                           : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-[#1E2128]'
                       }`}
                     >
@@ -127,7 +158,7 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
                       </div>
                       {item.badge && (
                         <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                          active ? 'bg-[#5C8397] text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                          active ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                         }`}>
                           {item.badge}
                         </span>
@@ -169,7 +200,7 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
         <div>
           {/* Brand */}
           <Link href="/dashboard" className="flex items-center gap-3 px-2 mb-6 group">
-            <div className="w-9 h-9 bg-[#5C8397] rounded-xl flex items-center justify-center text-white shadow-2xs group-hover:scale-105 transition-all duration-200">
+            <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center text-white shadow-2xs group-hover:scale-105 transition-all duration-200">
               <Sparkles size={18} />
             </div>
             <div>
@@ -187,6 +218,19 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
             <span>Crisis Helpline & SOS</span>
           </button>
 
+          {/* Quick Actions Row */}
+          <div className="flex items-center justify-between gap-2 px-1 mb-4 shrink-0">
+            <button
+              onClick={() => setIsSearchOpen(true)}
+              className="flex-grow flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-[#1E2128]/40 hover:bg-slate-100 dark:hover:bg-[#252932] border border-slate-200/60 dark:border-[#2B2F38] text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-250 rounded-xl text-xs transition-all text-left cursor-pointer"
+              title="Search (Cmd+K)"
+            >
+              <Search size={14} />
+              <span>Search...</span>
+            </button>
+            <NotificationDropdown />
+          </div>
+
           {/* Navigation Items */}
           <nav className="space-y-1">
             {navItems.map((item) => {
@@ -197,7 +241,7 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
                   href={item.href}
                   className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all duration-150 ${
                     active
-                      ? 'bg-[#5C8397]/12 dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] font-medium'
+                      ? 'bg-primary/12 dark:bg-primary/20 text-primary dark:text-[#A1C2D4] font-medium'
                       : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-[#1E2128] hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
@@ -207,7 +251,7 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
                   </div>
                   {item.badge && (
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                      active ? 'bg-[#5C8397] text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      active ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                     }`}>
                       {item.badge}
                     </span>
@@ -241,7 +285,7 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
           <div className="bg-slate-50/80 dark:bg-[#1E2128]/70 p-3 rounded-xl border border-slate-200/60 dark:border-[#2B2F38] mb-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5 overflow-hidden">
-                <div className="w-8 h-8 bg-[#5C8397]/15 dark:bg-[#5C8397]/25 text-[#5C8397] dark:text-[#A1C2D4] rounded-lg flex items-center justify-center font-medium text-sm shrink-0">
+                <div className="w-8 h-8 bg-primary/15 dark:bg-primary/25 text-primary dark:text-[#A1C2D4] rounded-lg flex items-center justify-center font-medium text-sm shrink-0">
                   <User size={16} />
                 </div>
                 <div className="truncate">
@@ -280,6 +324,12 @@ export default function AppSidebar({ children }: { children: React.ReactNode }) 
 
       {/* Settings Dialog Modal */}
       <SettingsModal />
+
+      {/* Global Search Modal */}
+      <GlobalSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+
+      {/* Global Ambient Sound Engine Pill & Mixer */}
+      <GlobalAudioPlayer />
 
       {/* SOS Crisis Modal */}
       <AnimatePresence>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { requireAuth } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -13,70 +13,85 @@ export async function GET(req: NextRequest) {
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
-    const [todayMood, recentLogs, habits, completions, announcements] = await Promise.all([
-      prisma.moodLog.findFirst({
-        where: {
-          userId: user.id,
-          createdAt: { gte: todayStart, lte: todayEnd },
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.moodLog.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-      }),
-      prisma.habit.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: 'asc' },
-      }),
-      prisma.habitCompletion.findMany({
-        where: {
-          userId: user.id,
-          date: todayStr,
-        },
-      }),
-      prisma.announcement.findMany({
-        where: { isActive: true },
-        orderBy: { createdAt: 'desc' },
-        take: 3,
-      }),
+    const [
+      { data: todayMoods },
+      { data: recentLogsData },
+      { data: habitsData },
+      { data: completionsData },
+      { data: announcementsData }
+    ] = await Promise.all([
+      supabase
+        .from('moods')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('created_at', todayStart.toISOString())
+        .lte('created_at', todayEnd.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1),
+      supabase
+        .from('moods')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20),
+      supabase
+        .from('habits')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('habit_completions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('date_str', todayStr),
+      supabase
+        .from('announcements')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(3),
     ]);
 
-    const completedHabitIds = new Set(completions.map((c) => c.habitId));
-    const formattedHabits = habits.map((h) => ({
+    const todayMood = todayMoods && todayMoods.length > 0 ? todayMoods[0] : null;
+    const recentLogs = recentLogsData || [];
+    const habits = habitsData || [];
+    const completions = completionsData || [];
+    const announcements = announcementsData || [];
+
+    const completedHabitIds = new Set(completions.map((c: any) => c.habit_id));
+    const formattedHabits = habits.map((h: any) => ({
       id: h.id,
       name: h.name,
       icon: h.icon,
       frequency: h.frequency,
       color: h.color,
       streak: h.streak,
-      bestStreak: h.bestStreak,
+      bestStreak: h.best_streak,
       completedToday: completedHabitIds.has(h.id),
     }));
 
-    const formattedLogs = recentLogs.map((log) => ({
+    const formattedLogs = recentLogs.map((log: any) => ({
       id: log.id,
-      moodScore: log.moodScore,
+      moodScore: log.mood_score,
       intensity: log.intensity,
-      tags: JSON.parse(log.tags || '[]'),
+      tags: typeof log.tags === 'string' ? JSON.parse(log.tags || '[]') : (log.tags || []),
       notes: log.notes,
-      createdAt: log.createdAt.toISOString(),
+      createdAt: log.created_at || new Date().toISOString(),
     }));
 
     const formattedTodayMood = todayMood
       ? {
           id: todayMood.id,
-          moodScore: todayMood.moodScore,
+          moodScore: todayMood.mood_score,
           intensity: todayMood.intensity,
-          tags: JSON.parse(todayMood.tags || '[]'),
+          tags: typeof todayMood.tags === 'string' ? JSON.parse(todayMood.tags || '[]') : (todayMood.tags || []),
           notes: todayMood.notes,
-          createdAt: todayMood.createdAt.toISOString(),
+          createdAt: todayMood.created_at || new Date().toISOString(),
         }
       : null;
 
     // Generate dynamic summary
-    let aiSummary = `Welcome back, ${user.name}! You are on a ${(user as any).streak || 1}-day check-in streak. Remember that small daily mindful steps build lasting mental resilience.`;
+    let aiSummary = `Welcome back, ${user.name}! You are on a ${user.streak || 1}-day check-in streak. Remember that small daily mindful steps build lasting mental resilience.`;
     if (formattedTodayMood) {
       if (formattedTodayMood.moodScore >= 4) {
         aiSummary = `You're reporting a positive mood today (${formattedTodayMood.moodScore}/5)! Your tags indicate good momentum. Take a moment to notice what contributed to this feeling.`;

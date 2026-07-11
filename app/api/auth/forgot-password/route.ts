@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { prisma } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 
 const forgotSchema = z.object({
   email: z.string().email(),
@@ -14,19 +14,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: validation.error.errors[0].message }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({ where: { email: validation.data.email.toLowerCase() } });
-    if (user) {
-      await prisma.auditLog.create({
-        data: {
-          userId: user.id,
-          action: 'PASSWORD_RESET_REQUESTED',
-          details: `Password reset email requested for ${user.email}`,
-          ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
-        },
-      });
-    }
+    await supabase.auth.resetPasswordForEmail(validation.data.email.toLowerCase()).catch(() => {});
 
-    // In production, send via Resend email service. Always return success to prevent email enumeration.
     return NextResponse.json({
       success: true,
       message: 'If an account exists with this email, a reset link has been sent.',

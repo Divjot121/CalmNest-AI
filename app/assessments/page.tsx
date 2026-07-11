@@ -15,10 +15,10 @@ import {
 } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import { useAuthStore } from '@/store/useAuthStore';
-import { saveAssessmentScore } from '@/lib/firestore-service';
+import { saveAssessmentScore } from '@/lib/db-service';
 import { triggerGentleSanctuaryCelebration } from '@/components/SanctuaryConfetti';
 
-type AssessmentType = 'GAD7' | 'PHQ9';
+type AssessmentType = 'GAD7' | 'PHQ9' | 'STRESS' | 'BURNOUT';
 
 const assessmentsData = {
   GAD7: {
@@ -47,6 +47,27 @@ const assessmentsData = {
       'Trouble concentrating on things, such as reading or working?',
       'Moving or speaking so slowly that other people could have noticed?',
       'Thoughts that you would be better off dead, or of hurting yourself?'
+    ]
+  },
+  STRESS: {
+    title: 'PSS-4 Perceived Stress Scale',
+    desc: 'Confidential 4-item clinical questionnaire designed to measure how unpredictable, uncontrollable, and overloaded you feel.',
+    questions: [
+      'In the last month, how often have you felt that you were unable to control the important things in your life?',
+      'In the last month, how often have you felt confident about your ability to handle your personal problems?',
+      'In the last month, how often have you felt that things were going your way?',
+      'In the last month, how often have you felt difficulties were piling up so high that you could not overcome them?'
+    ]
+  },
+  BURNOUT: {
+    title: 'CBI Burnout Evaluation Index',
+    desc: 'Confidential 5-item index to evaluate work/study exhaustion, emotional drain, and cognitive fatigue.',
+    questions: [
+      'How often do you feel physically exhausted after a day of work or study?',
+      'How often do you feel emotionally drained by your daily responsibilities?',
+      'How often do you feel that every task requires an exhausting level of effort?',
+      'How often do you feel less interest, hope, or enthusiasm in your activities?',
+      'How often do you feel that you are not achieving or making a difference?'
     ]
   }
 };
@@ -78,20 +99,34 @@ export default function AssessmentsPage() {
   };
 
   const calculateScore = () => {
+    if (activeType === 'STRESS') {
+      return answers.reduce((acc, v, idx) => {
+        const scoreVal = (idx === 1 || idx === 2) ? (3 - v) : v;
+        return acc + (v < 0 ? 0 : scoreVal);
+      }, 0);
+    }
     return answers.reduce((acc, v) => acc + (v < 0 ? 0 : v), 0);
   };
 
   const getInterpretation = (score: number, type: AssessmentType) => {
     if (type === 'GAD7') {
       if (score <= 4) return { level: 'Minimal Anxiety', color: 'text-[#4A725D] dark:text-[#A8C8B5] bg-[#E6EFEA] dark:bg-[#6B907B]/20 border-[#6B907B]/40', advice: 'Your score suggests minimal anxiety symptoms. Continue your gentle daily wellness routines!' };
-      if (score <= 9) return { level: 'Mild Anxiety', color: 'text-[#436475] dark:text-[#A1C2D4] bg-[#E8F0F8] dark:bg-[#5C8397]/20 border-[#8DA9B7]/40', advice: 'Mild anxiety noted. We recommend lotus box breathing exercises and journaling twice a week.' };
+      if (score <= 9) return { level: 'Mild Anxiety', color: 'text-primary-hover dark:text-[#A1C2D4] bg-primary-subtle dark:bg-primary/20 border-primary-light/40', advice: 'Mild anxiety noted. We recommend lotus box breathing exercises and journaling twice a week.' };
       if (score <= 14) return { level: 'Moderate Anxiety', color: 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800', advice: 'Moderate anxiety symptoms detected. Consider initiating regular check-ins with our 24/7 AI Therapist.' };
       return { level: 'Elevated Anxiety', color: 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800', advice: 'High anxiety levels indicated. Please prioritize gentle self-care and consider speaking with a licensed mental health professional or counselor.' };
-    } else {
+    } else if (type === 'PHQ9') {
       if (score <= 4) return { level: 'Minimal Symptoms', color: 'text-[#4A725D] dark:text-[#A8C8B5] bg-[#E6EFEA] dark:bg-[#6B907B]/20 border-[#6B907B]/40', advice: 'Your mood appears stable and positive overall. Maintain your healthy sleep and anchor habits!' };
-      if (score <= 9) return { level: 'Mild Symptoms', color: 'text-[#436475] dark:text-[#A1C2D4] bg-[#E8F0F8] dark:bg-[#5C8397]/20 border-[#8DA9B7]/40', advice: 'Some mild fatigue or low mood reported. Engaging in short nature walks and social check-ins can help.' };
+      if (score <= 9) return { level: 'Mild Symptoms', color: 'text-primary-hover dark:text-[#A1C2D4] bg-primary-subtle dark:bg-primary/20 border-primary-light/40', advice: 'Some mild fatigue or low mood reported. Engaging in short nature walks and social check-ins can help.' };
       if (score <= 14) return { level: 'Moderate Symptoms', color: 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800', advice: 'Moderate symptoms observed. Our AI Therapist can help structure gentle daily behavioral anchor goals.' };
       return { level: 'Elevated Symptoms', color: 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800', advice: 'Please remember you do not have to carry heavy feelings alone. Free, confidential support and peer resources are available right here.' };
+    } else if (type === 'STRESS') {
+      if (score <= 4) return { level: 'Low Stress', color: 'text-[#4A725D] dark:text-[#A8C8B5] bg-[#E6EFEA] dark:bg-[#6B907B]/20 border-[#6B907B]/40', advice: 'Your stress level is low. Continue with your mindful walking and gratitude routines!' };
+      if (score <= 8) return { level: 'Moderate Stress', color: 'text-primary-hover dark:text-[#A1C2D4] bg-primary-subtle dark:bg-primary/20 border-primary-light/40', advice: 'Moderate stress level detected. Try a 4-7-8 breathing session daily and prioritize sleep.' };
+      return { level: 'High Stress', color: 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800', advice: 'High stress level indicated. Consider talking with our AI Therapist and checking in with your support system.' };
+    } else {
+      if (score <= 4) return { level: 'No Burnout', color: 'text-[#4A725D] dark:text-[#A8C8B5] bg-[#E6EFEA] dark:bg-[#6B907B]/20 border-[#6B907B]/40', advice: 'You show minimal signs of burnout. Maintain a healthy work-life balance!' };
+      if (score <= 9) return { level: 'Mild Burnout', color: 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800', advice: 'Mild burnout signs observed. Schedule short, screen-free breaks and practice box breathing.' };
+      return { level: 'High Burnout', color: 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800', advice: 'Elevated burnout indicators detected. Prioritize setting firm boundaries, take a self-care day, and seek counselor support.' };
     }
   };
 
@@ -139,18 +174,18 @@ export default function AssessmentsPage() {
 
         {!activeType ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {(['GAD7', 'PHQ9'] as AssessmentType[]).map((type) => {
+            {(['GAD7', 'PHQ9', 'STRESS', 'BURNOUT'] as AssessmentType[]).map((type) => {
               const item = assessmentsData[type];
               return (
                 <div
                   key={type}
-                  className="card-minimal flex flex-col justify-between group hover:border-[#5C8397]/40 transition-all"
+                  className="card-minimal flex flex-col justify-between group hover:border-primary/40 transition-all"
                 >
                   <div>
-                    <div className="w-10 h-10 bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] rounded-xl flex items-center justify-center mb-4 shadow-2xs">
+                    <div className="w-10 h-10 bg-primary-subtle dark:bg-primary/20 text-primary dark:text-[#A1C2D4] rounded-xl flex items-center justify-center mb-4 shadow-2xs">
                       <HeartPulse size={20} strokeWidth={1.75} />
                     </div>
-                    <h3 className="font-medium text-lg text-slate-900 dark:text-slate-100 mb-2 group-hover:text-[#5C8397] dark:group-hover:text-[#A1C2D4] transition-colors">
+                    <h3 className="font-medium text-lg text-slate-900 dark:text-slate-100 mb-2 group-hover:text-primary dark:group-hover:text-[#A1C2D4] transition-colors">
                       {item.title}
                     </h3>
                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-6 font-normal">
@@ -172,7 +207,7 @@ export default function AssessmentsPage() {
           <div className="card-minimal space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200/60 dark:border-[#2B2F38]">
               <div>
-                <span className="text-[11px] font-mono text-[#5C8397] dark:text-[#A1C2D4]">{activeType} Assessment</span>
+                <span className="text-[11px] font-mono text-primary dark:text-[#A1C2D4]">{activeType} Assessment</span>
                 <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mt-0.5">{assessmentsData[activeType].title}</h2>
               </div>
               <button
@@ -197,7 +232,7 @@ export default function AssessmentsPage() {
                         onClick={() => handleSelectAnswer(qIdx, opt.val)}
                         className={`p-3 rounded-xl border text-left text-xs font-normal transition-all ${
                           answers[qIdx] === opt.val
-                            ? 'bg-[#5C8397] text-white border-[#5C8397] shadow-2xs font-medium'
+                            ? 'bg-primary text-white border-primary shadow-2xs font-medium'
                             : 'bg-slate-50 dark:bg-[#16181D] border-slate-200/70 dark:border-[#2B2F38] hover:bg-slate-100 dark:hover:bg-[#252932] text-slate-700 dark:text-slate-300'
                         }`}
                       >
@@ -226,14 +261,14 @@ export default function AssessmentsPage() {
             animate={{ opacity: 1, scale: 1 }}
             className="card-minimal text-center space-y-5 max-w-xl mx-auto py-10"
           >
-            <div className="w-16 h-16 bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] rounded-2xl flex items-center justify-center mx-auto shadow-2xs">
+            <div className="w-16 h-16 bg-primary-subtle dark:bg-primary/20 text-primary dark:text-[#A1C2D4] rounded-2xl flex items-center justify-center mx-auto shadow-2xs">
               <ShieldCheck size={32} strokeWidth={1.75} />
             </div>
 
             <div className="space-y-1">
               <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500">Screening Result Summary</span>
               <h2 className="text-3xl font-medium text-slate-900 dark:text-slate-100">
-                Score: {calculateScore()} / {activeType === 'GAD7' ? 21 : 27}
+                Score: {calculateScore()} / {activeType === 'GAD7' ? 21 : activeType === 'PHQ9' ? 27 : activeType === 'STRESS' ? 12 : 15}
               </h2>
             </div>
 

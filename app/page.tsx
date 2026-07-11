@@ -31,7 +31,7 @@ const Navbar = () => {
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 h-16 flex items-center px-6 md:px-12 ${isScrolled ? 'bg-white/90 dark:bg-[#16181D]/90 backdrop-blur-md border-b border-slate-200/70 dark:border-[#2B2F38] shadow-2xs' : 'bg-transparent'}`}>
       <div className="max-w-6xl mx-auto w-full flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 group select-none">
-          <div className="w-8 h-8 bg-[#5C8397] rounded-xl flex items-center justify-center text-white shadow-2xs group-hover:scale-105 transition-transform duration-200">
+          <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center text-white shadow-2xs group-hover:scale-105 transition-transform duration-200">
             <Sparkles size={16} strokeWidth={1.75} />
           </div>
           <span className="text-base font-medium tracking-tight text-slate-900 dark:text-slate-100">CalmNest</span>
@@ -41,7 +41,7 @@ const Navbar = () => {
           <a href="#philosophy" className="hover:text-slate-900 dark:hover:text-white transition-colors duration-150">Philosophy</a>
           <a href="#experience" className="hover:text-slate-900 dark:hover:text-white transition-colors duration-150">Experience</a>
           <a href="#privacy" className="hover:text-slate-900 dark:hover:text-white transition-colors duration-150">Privacy & Safety</a>
-          <Link href="/dashboard" className="text-[#5C8397] dark:text-[#A1C2D4] font-medium hover:underline">Sanctuary Workspace</Link>
+          <Link href="/dashboard" className="text-primary dark:text-[#A1C2D4] font-medium hover:underline">Sanctuary Workspace</Link>
         </div>
 
         <div className="hidden md:flex items-center gap-3">
@@ -74,7 +74,7 @@ const Navbar = () => {
             <div>
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 bg-[#5C8397] rounded-xl flex items-center justify-center text-white">
+                  <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center text-white">
                     <Sparkles size={16} strokeWidth={1.75} />
                   </div>
                   <span className="text-base font-medium tracking-tight text-slate-900 dark:text-slate-100">CalmNest</span>
@@ -87,7 +87,7 @@ const Navbar = () => {
                 <a href="#philosophy" onClick={() => setIsMobileMenuOpen(false)} className="text-slate-700 dark:text-slate-200">Philosophy</a>
                 <a href="#experience" onClick={() => setIsMobileMenuOpen(false)} className="text-slate-700 dark:text-slate-200">Experience</a>
                 <a href="#privacy" onClick={() => setIsMobileMenuOpen(false)} className="text-slate-700 dark:text-slate-200">Privacy & Safety</a>
-                <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="text-[#5C8397] dark:text-[#A1C2D4] font-medium">Sanctuary Workspace</Link>
+                <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="text-primary dark:text-[#A1C2D4] font-medium">Sanctuary Workspace</Link>
               </div>
             </div>
             
@@ -126,7 +126,7 @@ export default function LandingPage() {
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-medium text-slate-900 dark:text-slate-100 tracking-tight leading-[1.15] max-w-3xl">
             You are safe here. <br/>
-            <span className="text-[#5C8397] dark:text-[#A1C2D4] font-normal">Take a quiet breath.</span>
+            <span className="text-primary dark:text-[#A1C2D4] font-normal">Take a quiet breath.</span>
           </h1>
 
           <p className="text-base sm:text-lg text-slate-500 dark:text-slate-400 max-w-xl leading-relaxed font-normal">
@@ -163,7 +163,7 @@ export default function LandingPage() {
           className="w-full max-w-3xl mt-6 bg-white dark:bg-[#1E2128] border border-slate-200/70 dark:border-[#2B2F38] rounded-2xl p-6 sm:p-8 shadow-xs text-left grid grid-cols-1 sm:grid-cols-3 gap-6"
         >
           <div className="space-y-2 border-b sm:border-b-0 sm:border-r border-slate-200/60 dark:border-[#2B2F38] pb-4 sm:pb-0 sm:pr-6">
-            <div className="w-8 h-8 bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] rounded-xl flex items-center justify-center mb-3">
+            <div className="w-8 h-8 bg-primary-subtle dark:bg-primary/20 text-primary dark:text-[#A1C2D4] rounded-xl flex items-center justify-center mb-3">
               <MessageCircle size={18} strokeWidth={1.75} />
             </div>
             <h3 className="font-medium text-sm text-slate-900 dark:text-slate-100">Empathetic AI Companion</h3>
@@ -211,7 +211,7 @@ export default function LandingPage() {
             {[
               {
                 icon: <ShieldCheck size={20} strokeWidth={1.75} />,
-                color: "text-[#5C8397] dark:text-[#A1C2D4] bg-[#E8F0F8] dark:bg-[#5C8397]/20",
+                color: "text-primary dark:text-[#A1C2D4] bg-primary-subtle dark:bg-primary/20",
                 title: "Complete Privacy by Design",
                 desc: "No account or personally identifiable information is ever required. Your emotional journey belongs entirely to you."
               },
@@ -249,7 +249,7 @@ export default function LandingPage() {
       <footer className="py-10 px-6 border-t border-slate-200/70 dark:border-[#2B2F38] text-xs text-slate-500 dark:text-slate-400">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 bg-[#5C8397] rounded-lg flex items-center justify-center text-white">
+            <div className="w-6 h-6 bg-primary rounded-lg flex items-center justify-center text-white">
               <Sparkles size={12} strokeWidth={1.75} />
             </div>
             <span className="font-medium text-slate-800 dark:text-slate-200">CalmNest Sanctuary</span>

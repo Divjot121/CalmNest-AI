@@ -1,237 +1,310 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Send, 
-  User, 
-  ChevronLeft, 
-  Smile, 
-  ShieldCheck, 
-  AlertTriangle,
-  Loader2,
-  X,
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  ChevronLeft,
+  ChevronRight,
   Sparkles,
-  Leaf
+  User,
+  AlertTriangle,
+  X,
+  Send,
+  Loader2,
+  Trash2,
+  Edit2,
+  Plus,
+  Search,
+  Download,
+  Copy,
+  RotateCcw,
+  StopCircle,
+  Menu,
+  HeartPulse,
+  CornerDownLeft,
+  Check
 } from 'lucide-react';
-import { auth, db } from '@/lib/firebase';
-import { signInAnonymously, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  orderBy, 
-  onSnapshot, 
-  serverTimestamp,
-  doc,
-  updateDoc,
-  limit
-} from 'firebase/firestore';
-import { useSanctuaryTranslation } from '@/lib/i18n/useSanctuaryTranslation';
-import { triggerGentleSanctuaryCelebration } from './SanctuaryConfetti';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { useSanctuaryTranslation } from '@/lib/i18n/useSanctuaryTranslation';
+import { triggerGentleSanctuaryCelebration } from '@/components/SanctuaryConfetti';
+import { getOrCreateAnonymousUUID } from '@/lib/identity-service';
+import {
+  getConversations,
+  createConversation,
+  renameConversation,
+  deleteConversation,
+  ConversationItem
+} from '@/lib/db-service';
 
 interface Message {
   id: string;
   text: string;
-  senderType: 'user' | 'ai' | 'volunteer';
-  createdAt: any;
+  senderType: 'user' | 'ai';
+  sentiment?: string;
+  createdAt: string;
 }
 
-function generateMessageId(prefix: 'user' | 'ai'): string {
-  return `local_${prefix === 'user' ? 'u' : 'ai'}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-}
+const generateMessageId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-function generateGuestId(): string {
-  return 'guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-}
-
-interface QuickAction {
-  id: string;
-  labelKey: string;
-  prompt: string;
-  icon: string;
-}
-
-const QUICK_ACTIONS: QuickAction[] = [
+const quickActions = [
   { id: 'anxious', labelKey: 'chat.quickActions.anxious', prompt: "I feel anxious right now and could use some gentle guidance to ground myself.", icon: '🍃' },
-  { id: 'overwhelmed', labelKey: 'chat.quickActions.overwhelmed', prompt: "I'm feeling overwhelmed with everything happening around me right now.", icon: '🌊' },
-  { id: 'sleep', labelKey: 'chat.quickActions.sleep', prompt: "I can't seem to quiet my mind to sleep. Can we do a quick relaxation exercise?", icon: '🌙' },
-  { id: 'motivation', labelKey: 'chat.quickActions.motivation', prompt: "I need some gentle, kind motivation to help me get through today.", icon: '✨' },
-  { id: 'vent', labelKey: 'chat.quickActions.vent', prompt: "I just want a safe, quiet space to vent about what happened today.", icon: '💬' },
-  { id: 'calm', labelKey: 'chat.quickActions.calm', prompt: "Please help me calm down and take a slow, deep breath together.", icon: '🪷' },
-  { id: 'win', labelKey: 'chat.quickActions.win', prompt: "I want to celebrate a small win I had today with you!", icon: '🌱' },
-  { id: 'gratitude', labelKey: 'chat.quickActions.gratitude', prompt: "Let's practice a short moment of gratitude together right now.", icon: '🙏' },
+  { id: 'winddown', labelKey: 'chat.quickActions.winddown', prompt: "Help me wind down for sleep. My mind is racing with thoughts.", icon: '🌙' },
+  { id: 'journalPrompt', labelKey: 'chat.quickActions.journalPrompt', prompt: "Can you provide a gentle journal prompt to reflect on my feelings?", icon: '✍️' },
+  { id: 'mindfulWalk', labelKey: 'chat.quickActions.mindfulWalk', prompt: "How do I practice a mindful sensory check-in while walking?", icon: '🚶' }
 ];
-
-const getLocalChatHistory = (uid: string): Message[] => {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(`calmnest_chat_${uid}`);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    return [];
-  }
-};
-
-const saveLocalChatHistory = (uid: string, msgs: Message[]) => {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(`calmnest_chat_${uid}`, JSON.stringify(msgs));
-  } catch (e) {}
-};
 
 export default function ChatInterface() {
   const router = useRouter();
   const { t, currentLanguage } = useSanctuaryTranslation();
+  const { user } = useAuthStore();
   const { preferences } = useSettingsStore();
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+
+  // Navigation / Layout state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Database Sessions state
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [editingConvId, setEditingConvId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [sidebarSearch, setSidebarSearch] = useState('');
+
+  // Messages state
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [crisisDetected, setCrisisDetected] = useState(false);
   const [showMoodPicker, setShowMoodPicker] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(true);
-  const [crisisDetected, setCrisisDetected] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
 
+  // References
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Syncing layout settings
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setCurrentUser(user);
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setIsSidebarOpen(false);
       } else {
-        try {
-          const userCredential = await signInAnonymously(auth);
-          setCurrentUser(userCredential.user);
-        } catch (e) {
-          console.error("Anonymous auth error:", e);
-        }
+        setIsSidebarOpen(true);
       }
-    });
-    return () => unsubscribeAuth();
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    let timer1: any = null;
-    if (!currentUser) {
-      if (typeof window !== 'undefined') {
-        const guestId = window.localStorage.getItem('calmnest_guest_uid') || 'guest_user';
-        const saved = getLocalChatHistory(guestId);
-        if (saved.length > 0) {
-          timer1 = setTimeout(() => setMessages(saved), 0);
-        }
-      }
-      return () => {
-        if (timer1) clearTimeout(timer1);
-      };
-    }
-
-    const saved = getLocalChatHistory(currentUser.uid);
-    let timer2: any = null;
-    if (saved.length > 0) {
-      timer2 = setTimeout(() => setMessages(saved), 0);
-    }
-
-    const q = query(
-      collection(db, 'users', currentUser.uid, 'messages'),
-      orderBy('createdAt', 'asc'),
-      limit(100)
-    );
-    const unsubscribeMessages = onSnapshot(q, (snapshot) => {
-      const remote: Message[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...(doc.data() as Omit<Message, 'id'>)
-      }));
-      if (remote.length > 0) {
-        setMessages(remote);
-        saveLocalChatHistory(currentUser.uid, remote);
-        setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      }
-    }, (err) => {
-      console.warn("Firestore messages snapshot error (handled):", err);
-    });
-    return () => {
-      if (timer1) clearTimeout(timer1);
-      if (timer2) clearTimeout(timer2);
-      unsubscribeMessages();
-    };
-  }, [currentUser]);
-
-  const getEffectiveUserId = async (): Promise<string> => {
-    if (currentUser) return currentUser.uid;
+  // Fetch initial conversations list
+  const loadConversations = async (userId: string) => {
     try {
-      const cred = await signInAnonymously(auth);
-      if (cred.user) {
-        setCurrentUser(cred.user);
-        return cred.user.uid;
+      const list = await getConversations(userId);
+      setConversations(list);
+      
+      if (list.length > 0) {
+        // Select the most recent conversation by default
+        setSelectedConversationId(list[0].id);
+      } else {
+        // Create a default welcome conversation if none exist
+        const newId = await createConversation(userId, 'Sanctuary Session');
+        const newList = await getConversations(userId);
+        setConversations(newList);
+        setSelectedConversationId(newId);
       }
-    } catch (e) {}
-    if (typeof window !== 'undefined') {
-      let guestId = window.localStorage.getItem('calmnest_guest_uid');
-      if (!guestId) {
-        guestId = generateGuestId();
-        window.localStorage.setItem('calmnest_guest_uid', guestId);
-      }
-      return guestId;
-    }
-    return 'guest_user';
-  };
-
-  const logMood = async (score: number) => {
-    setShowMoodPicker(false);
-    const uid = await getEffectiveUserId();
-    try {
-      await addDoc(collection(db, 'users', uid, 'moods'), {
-        score,
-        tags: ['chat-checkin'],
-        notes: `Logged via AI Therapist session`,
-        createdAt: serverTimestamp(),
-      });
     } catch (e) {
-      // Silently handled without permission error
+      console.error('Error loading conversations:', e);
     }
-    triggerGentleSanctuaryCelebration('petals');
-    await sendMessageWithPrompt(`I just logged my current mood as ${score}/5. Can we reflect on this?`);
   };
 
-  const sendMessageWithPrompt = async (promptText: string) => {
-    if (!promptText.trim() || isLoading) return;
+  useEffect(() => {
+    const userId = user?.id || getOrCreateAnonymousUUID();
+    loadConversations(userId);
+  }, [user]);
+
+  // Load messages for selected conversation
+  useEffect(() => {
+    if (!selectedConversationId) {
+      setMessages([]);
+      return;
+    }
+
+    const fetchMessages = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', selectedConversationId)
+          .order('created_at', { ascending: true })
+          .limit(100);
+
+        if (!error && data) {
+          const mapped: Message[] = data.map((m: any) => ({
+            id: m.id,
+            text: m.content,
+            senderType: m.role === 'user' ? 'user' : 'ai',
+            sentiment: m.sentiment || undefined,
+            createdAt: m.created_at || new Date().toISOString()
+          }));
+          setMessages(mapped);
+          setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        } else {
+          setMessages([]);
+        }
+      } catch (err) {
+        console.error('Failed to load messages:', err);
+        setMessages([]);
+      }
+    };
+
+    fetchMessages();
+  }, [selectedConversationId]);
+
+  // Scroll to bottom helper
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isTyping]);
+
+  const getEffectiveUserId = (): string => {
+    return user?.id || getOrCreateAnonymousUUID();
+  };
+
+  // Create new session
+  const handleNewSession = async () => {
+    const userId = getEffectiveUserId();
     setIsLoading(true);
-    setShowQuickActions(false);
-    
-    const uid = await getEffectiveUserId();
-    const userMsg: Message = {
-      id: generateMessageId('user'),
+    try {
+      const newId = await createConversation(userId, `Session #${Date.now().toString().slice(-4)}`);
+      const list = await getConversations(userId);
+      setConversations(list);
+      setSelectedConversationId(newId);
+      setMessages([]);
+      setShowQuickActions(true);
+      setCrisisDetected(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Rename Session
+  const handleRenameSession = async (convId: string) => {
+    if (!editingTitle.trim()) return;
+    try {
+      await renameConversation(convId, editingTitle.trim());
+      const userId = getEffectiveUserId();
+      const list = await getConversations(userId);
+      setConversations(list);
+      setEditingConvId(null);
+    } catch (e) {}
+  };
+
+  // Delete Session
+  const handleDeleteSession = async (convId: string) => {
+    if (confirm('Delete this conversation? All message logs will be permanently removed.')) {
+      try {
+        await deleteConversation(convId);
+        const userId = getEffectiveUserId();
+        const list = await getConversations(userId);
+        setConversations(list);
+        if (selectedConversationId === convId) {
+          if (list.length > 0) {
+            setSelectedConversationId(list[0].id);
+          } else {
+            handleNewSession();
+          }
+        }
+      } catch (e) {}
+    }
+  };
+
+  // Copy Message to Clipboard
+  const handleCopyMessage = (id: string, text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedMsgId(id);
+      setTimeout(() => setCopiedMsgId(null), 2000);
+    });
+  };
+
+  // Export session
+  const handleExportSession = (format: 'txt' | 'json') => {
+    if (messages.length === 0) return;
+    let dataStr = "";
+    let mimeType = "text/plain";
+    let extension = "txt";
+
+    if (format === 'json') {
+      dataStr = JSON.stringify(messages, null, 2);
+      mimeType = "application/json";
+      extension = "json";
+    } else {
+      dataStr = messages.map(m => `[${m.senderType === 'user' ? 'USER' : 'CALMNEST AI'} - ${new Date(m.createdAt).toLocaleTimeString()}]\n${m.text}\n\n`).join("");
+    }
+
+    const blob = new Blob([dataStr], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `calmnest_session_${selectedConversationId?.slice(0, 8)}.${extension}`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Send message streaming response
+  const sendMessageWithPrompt = async (promptText: string, isRetry = false) => {
+    if (!promptText.trim() || !selectedConversationId) return;
+
+    // Abort previous stream if active
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    setIsLoading(true);
+    setIsTyping(true);
+
+    const userMsgId = generateMessageId('user');
+    const aiMsgId = generateMessageId('ai');
+
+    const newUserMsg: Message = {
+      id: userMsgId,
       text: promptText,
       senderType: 'user',
       createdAt: new Date().toISOString()
     };
 
-    let currentHistory: Message[] = [];
-    setMessages(prev => {
-      const next = [...prev, userMsg];
-      currentHistory = next;
-      saveLocalChatHistory(uid, next);
-      return next;
-    });
+    const newAiPlaceholderMsg: Message = {
+      id: aiMsgId,
+      text: "",
+      senderType: 'ai',
+      createdAt: new Date().toISOString()
+    };
 
-    setIsTyping(true);
-    setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-
-    // Try saving to remote Firestore silently
-    try {
-      await addDoc(collection(db, 'users', uid, 'messages'), {
-        text: promptText,
-        senderType: 'user',
-        createdAt: serverTimestamp(),
-      });
-    } catch (e) {
-      // Silently handled by local storage cache without throwing permission errors
+    // If not a retry, insert user message first
+    if (!isRetry) {
+      setMessages(prev => [...prev, newUserMsg, newAiPlaceholderMsg]);
+      try {
+        await supabase.from('messages').insert({
+          conversation_id: selectedConversationId,
+          role: 'user',
+          content: promptText,
+          created_at: new Date().toISOString()
+        });
+      } catch (e) {}
+    } else {
+      setMessages(prev => [...prev, newAiPlaceholderMsg]);
     }
 
+    setShowQuickActions(false);
+
     try {
-      const historyPayload = currentHistory.slice(-12, -1).map(m => ({
+      // Build history payload for API
+      const historyPayload = messages.slice(-10).map(m => ({
         role: m.senderType === 'user' ? 'user' : 'model',
         text: m.text
       }));
@@ -239,50 +312,156 @@ export default function ChatInterface() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
+          conversationId: selectedConversationId,
           message: promptText,
           history: historyPayload,
-          language: currentLanguage,
-          voiceStyle: preferences.aiVoiceOrStyle || 'warm'
-        })
+          language: preferences.aiPreferredLanguage && preferences.aiPreferredLanguage !== 'auto' ? preferences.aiPreferredLanguage : currentLanguage,
+          voiceStyle: preferences.aiVoiceOrStyle || 'warm',
+          aiPersonality: preferences.aiPersonality || 'counselor',
+          aiResponseLength: preferences.aiResponseLength || 'medium',
+          aiEmpathyLevel: preferences.aiEmpathyLevel || 'high',
+          aiMemoryEnabled: preferences.aiMemoryEnabled !== false
+        }),
+        signal: abortControllerRef.current.signal
       });
 
-      const data = await response.json();
+      if (!response.body) throw new Error('Readable stream not supported.');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let accumulatedText = "";
+      let sentimentValue = "neutral";
+
       setIsTyping(false);
 
-      if (data.isCrisis || data.crisisDetected) {
-        setCrisisDetected(true);
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: !done });
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const jsonStr = line.slice(6).trim();
+                if (!jsonStr) continue;
+                const parsed = JSON.parse(jsonStr);
+                
+                if (parsed.error) {
+                  accumulatedText = parsed.error;
+                  break;
+                }
+
+                if (parsed.done) {
+                  if (parsed.isCrisis) {
+                    setCrisisDetected(true);
+                  }
+                  done = true;
+                } else if (parsed.text) {
+                  accumulatedText += parsed.text;
+                  sentimentValue = parsed.sentiment || sentimentValue;
+
+                  // Update UI message only if streaming is enabled
+                  if (preferences.aiStreamingEnabled !== false) {
+                    setMessages(prev => {
+                      const list = [...prev];
+                      const idx = list.findIndex(m => m.id === aiMsgId);
+                      if (idx !== -1) {
+                        list[idx] = { ...list[idx], text: accumulatedText, sentiment: sentimentValue };
+                      }
+                      return list;
+                    });
+                  }
+                }
+              } catch (e) {}
+            }
+          }
+        }
       }
 
-      const replyText = data.reply || data.text || t('chat.errorReply') || "I'm right here with you. Let's take a slow, gentle breath together.";
-      const aiMsg: Message = {
-        id: generateMessageId('ai'),
-        text: replyText,
-        senderType: 'ai',
-        createdAt: new Date().toISOString()
-      };
-
-      setMessages(prev => {
-        const next = [...prev, aiMsg];
-        saveLocalChatHistory(uid, next);
-        return next;
-      });
-
-      try {
-        await addDoc(collection(db, 'users', uid, 'messages'), {
-          text: replyText,
-          senderType: 'ai',
-          createdAt: serverTimestamp(),
+      // If streaming was disabled, update the UI message with the full accumulated text now
+      if (preferences.aiStreamingEnabled === false) {
+        setMessages(prev => {
+          const list = [...prev];
+          const idx = list.findIndex(m => m.id === aiMsgId);
+          if (idx !== -1) {
+            list[idx] = { ...list[idx], text: accumulatedText, sentiment: sentimentValue };
+          }
+          return list;
         });
-      } catch (e) {}
+      }
 
+      // Sync AI message back to supabase once finished
+      try {
+        await supabase.from('messages').insert({
+          conversation_id: selectedConversationId,
+          role: 'assistant',
+          content: accumulatedText,
+          sentiment: sentimentValue,
+          created_at: new Date().toISOString()
+        });
+
+        // Trigger subtle celebration sound or pulse
+        if (preferences.ambientAutoResume) {
+          // Play lightweight tone if custom sound store handles it
+        }
+      } catch (dbErr) {}
+
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error("Chat error:", err);
+        setMessages(prev => {
+          const list = [...prev];
+          const idx = list.findIndex(m => m.id === aiMsgId);
+          if (idx !== -1) {
+            list[idx] = { ...list[idx], text: "I'm right here. Let's take a slow, gentle breath together. (Connection issues, please check your network)." };
+          }
+          return list;
+        });
+      }
+    } finally {
       setIsLoading(false);
-      setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    } catch (e) {
-      console.error("Chat error:", e);
       setIsTyping(false);
-      setIsLoading(false);
+      abortControllerRef.current = null;
     }
+  };
+
+  const getSuggestedFollowUpQuestions = () => {
+    if (messages.length === 0) return [];
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg.senderType !== 'ai') return [];
+    
+    // Check sentiment of last message to suggest relevant follow ups
+    const text = lastMsg.text.toLowerCase();
+    if (text.includes('breath') || text.includes('breathing') || text.includes('साँस') || text.includes('ਸਾਹ')) {
+      return [
+        "Let's practice a 4-7-8 breathing exercise together",
+        "How does breathing help calm the nervous system?",
+        "Can we try a simpler box breathing instead?"
+      ];
+    }
+    if (text.includes('anxious') || text.includes('anxiety') || text.includes('चिंता') || text.includes('ਘਬਰਾਹਟ')) {
+      return [
+        "What are some sensory grounding techniques?",
+        "Help me write a journal entry to release this",
+        "Could you guide me through a body scan?"
+      ];
+    }
+    if (text.includes('sleep') || text.includes('night') || text.includes('नींद') || text.includes('ਨੀਂਦ')) {
+      return [
+        "What is a good sleep hygiene routine?",
+        "Play the gentle rain soundscape for me",
+        "Tell me a calming mindful story for bedtime"
+      ];
+    }
+    // Default helpful wellness check suggestions
+    return [
+      "Can you give me a gentle mindfulness exercise?",
+      "Let's write a journal reflection together",
+      "I'd like to check my streak progress"
+    ];
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -293,280 +472,469 @@ export default function ChatInterface() {
     sendMessageWithPrompt(text);
   };
 
+  const handleRetryResponse = () => {
+    if (messages.length < 2) return;
+    const lastUserMsg = [...messages].reverse().find(m => m.senderType === 'user');
+    if (lastUserMsg) {
+      sendMessageWithPrompt(lastUserMsg.text, true);
+    }
+  };
+
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  };
+
+  // Custom parser to format bold markers and newlines nicely
+  const formatText = (text: string) => {
+    if (!text) return "";
+    return text.split('\n').map((para, i) => {
+      // Bold text formatting
+      const parts = para.split(/\*\*([^*]+)\*\*/g);
+      const rendered = parts.map((part, index) => {
+        if (index % 2 === 1) return <strong key={index} className="font-semibold text-slate-900 dark:text-white">{part}</strong>;
+        return part;
+      });
+
+      if (para.startsWith('- ') || para.startsWith('* ')) {
+        return (
+          <li key={i} className="list-disc ml-5 mt-1 font-normal text-slate-800 dark:text-slate-200">
+            {rendered}
+          </li>
+        );
+      }
+      return (
+        <p key={i} className="mb-2 last:mb-0 font-normal text-slate-800 dark:text-slate-200">
+          {rendered}
+        </p>
+      );
+    });
+  };
+
+  // Filter conversations based on search
+  const filteredConversations = conversations.filter(c =>
+    c.title.toLowerCase().includes(sidebarSearch.toLowerCase())
+  );
+
   return (
-    <div className="flex flex-col h-screen bg-[#FAF9F6] dark:bg-[#16181D] text-slate-800 dark:text-slate-100 font-sans select-none overflow-hidden transition-colors duration-300">
+    <div className="flex h-screen bg-[#FAF9F6] dark:bg-[#16181D] text-slate-800 dark:text-slate-100 font-sans select-none overflow-hidden transition-colors duration-300">
       
-      {/* Header */}
-      <header className="h-16 px-4 md:px-8 bg-white/90 dark:bg-[#1E2128]/90 backdrop-blur-md border-b border-slate-200/70 dark:border-[#2B2F38] flex items-center justify-between shrink-0 z-20">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => router.push('/dashboard')}
-            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#252932] rounded-xl transition-colors flex items-center gap-1.5 text-xs font-medium"
-            aria-label="Back to dashboard"
-          >
-            <ChevronLeft size={18} strokeWidth={1.75} />
-            <span className="hidden sm:inline">Workspace</span>
-          </button>
-          <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 hidden sm:block" />
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-[#5C8397] rounded-xl flex items-center justify-center text-white shadow-2xs">
-              <Sparkles size={16} strokeWidth={1.75} />
-            </div>
-            <div>
-              <h1 className="font-medium text-sm text-slate-900 dark:text-slate-100 leading-none">
-                {t('nav.chat') || 'AI Therapist'}
-              </h1>
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="w-1.5 h-1.5 bg-[#6B907B] rounded-full" />
-                <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">
-                  Online 24/7 Sanctuary
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="badge-blue text-[11px] py-1 px-3">
-            <ShieldCheck size={13} strokeWidth={1.75} />
-            <span>100% Anonymous</span>
-          </span>
-        </div>
-      </header>
-
-      {/* Main Stream Area */}
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 max-w-3xl mx-auto w-full">
-        {messages.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="text-center py-10 space-y-3 max-w-sm mx-auto"
-          >
-            <div className="w-12 h-12 rounded-2xl bg-[#E8F0F8] dark:bg-[#5C8397]/20 text-[#5C8397] dark:text-[#A1C2D4] flex items-center justify-center mx-auto shadow-2xs">
-              <Leaf size={22} strokeWidth={1.75} />
-            </div>
-            <h3 className="text-base font-medium text-slate-900 dark:text-slate-100">
-              {t('welcome.title') || 'Your Safe Space Begins Here'}
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              {t('emptyStates.journal') || 'No judgment, no urgency. Take a deep, quiet breath and share whatever is on your mind when you feel ready.'}
-            </p>
-          </motion.div>
-        )}
-
-        <AnimatePresence>
-          {messages.map((msg, i) => (
-            <motion.div
-              key={msg.id || i}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
-              className={`flex ${msg.senderType === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`flex items-start gap-3 max-w-[85%] md:max-w-[75%] ${msg.senderType === 'user' ? 'flex-row-reverse' : ''}`}>
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-2xs mt-0.5 ${
-                  msg.senderType === 'user' 
-                    ? 'bg-[#5C8397]/15 text-[#5C8397] dark:bg-[#5C8397]/25 dark:text-white' 
-                    : 'bg-[#5C8397] text-white'
-                }`}>
-                  {msg.senderType === 'user' ? <User size={16} strokeWidth={1.75} /> : <Sparkles size={16} strokeWidth={1.75} />}
-                </div>
-                <div className={`px-4.5 py-3.5 text-sm leading-relaxed ${
-                  msg.senderType === 'user' 
-                    ? 'chat-bubble-user font-normal' 
-                    : 'chat-bubble-ai font-normal'
-                }`}>
-                  {msg.text}
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {/* Calming Thinking Indicator */}
-        {isTyping && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex justify-start"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-[#5C8397] text-white flex items-center justify-center shadow-2xs">
-                <Sparkles size={16} strokeWidth={1.75} className="animate-pulse" />
-              </div>
-              <div className="bg-white dark:bg-[#1E2128] border border-slate-200/70 dark:border-[#2B2F38] px-4 py-3 rounded-2xl rounded-tl-xs flex items-center gap-2.5 shadow-2xs">
-                <div className="flex gap-1">
-                  <span className="w-1.5 h-1.5 bg-[#8DA9B7] rounded-full animate-pulse" />
-                  <span className="w-1.5 h-1.5 bg-[#6B907B] rounded-full animate-pulse [animation-delay:0.25s]" />
-                  <span className="w-1.5 h-1.5 bg-[#8D80A9] rounded-full animate-pulse [animation-delay:0.5s]" />
-                </div>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-normal italic">
-                  {t('chat.thinking') || 'Reflecting with care...'}
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        <div ref={scrollRef} />
-      </main>
-
-      {/* Dignified Crisis Banner */}
+      {/* Side Panel for Conversations */}
       <AnimatePresence>
-        {crisisDetected && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="bg-rose-50 dark:bg-rose-950/50 border-t border-rose-200 dark:border-rose-800/80 px-6 py-4"
+        {isSidebarOpen && (
+          <motion.aside
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 280, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="h-full bg-white dark:bg-[#1E2128] border-r border-slate-200/70 dark:border-[#2B2F38] flex flex-col z-30 shrink-0"
           >
-            <div className="max-w-3xl mx-auto flex items-start gap-3.5">
-              <div className="w-9 h-9 bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-300 rounded-xl flex items-center justify-center shrink-0">
-                <AlertTriangle size={18} strokeWidth={1.75} />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-medium text-rose-900 dark:text-rose-100 text-sm mb-1">
-                  Immediate Support Available
-                </h4>
-                <p className="text-xs text-rose-700 dark:text-rose-300 leading-relaxed mb-3">
-                  {t('chat.crisisAlert') || 'Please remember you do not have to carry heavy feelings alone. Free, confidential support is right here for you.'}
-                </p>
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <a 
-                    href="tel:18005990019" 
-                    className="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors shadow-2xs"
-                  >
-                    📞 KIRAN Helpline (1800-599-0019)
-                  </a>
-                  <a 
-                    href="tel:988" 
-                    className="bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors shadow-2xs"
-                  >
-                    🚨 US/Canada Crisis (988)
-                  </a>
-                  <button onClick={() => setCrisisDetected(false)} className="text-rose-400 hover:text-rose-600 p-1.5 ml-auto">
-                    <X size={16} strokeWidth={1.75} />
-                  </button>
-                </div>
+            {/* Sidebar Header */}
+            <div className="p-4 border-b border-slate-100 dark:border-[#2B2F38] flex items-center justify-between shrink-0">
+              <span className="text-xs uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500">Sessions</span>
+              <button
+                onClick={handleNewSession}
+                className="p-1.5 bg-primary hover:bg-primary-hover text-white rounded-xl shadow-2xs transition-colors flex items-center gap-1 text-[11px] font-medium"
+                title="New chat session"
+              >
+                <Plus size={14} />
+                <span>New</span>
+              </button>
+            </div>
+
+            {/* Sidebar Search */}
+            <div className="p-3 shrink-0">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                <input
+                  type="text"
+                  placeholder="Search sessions..."
+                  value={sidebarSearch}
+                  onChange={(e) => setSidebarSearch(e.target.value)}
+                  className="w-full bg-[#FAF9F6] dark:bg-[#16181D] border border-slate-200 dark:border-[#2B2F38] rounded-xl pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:border-primary"
+                />
               </div>
             </div>
-          </motion.div>
+
+            {/* Sessions List */}
+            <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-1">
+              {filteredConversations.map((conv) => {
+                const isSelected = selectedConversationId === conv.id;
+                const isEditing = editingConvId === conv.id;
+
+                return (
+                  <div
+                    key={conv.id}
+                    className={`group relative flex items-center justify-between p-2 rounded-xl text-xs font-medium cursor-pointer transition-colors ${
+                      isSelected 
+                        ? 'bg-primary/15 text-primary dark:text-[#A1C2D4]' 
+                        : 'hover:bg-slate-50 dark:hover:bg-[#252932] text-slate-600 dark:text-slate-300'
+                    }`}
+                    onClick={() => {
+                      if (!isEditing) setSelectedConversationId(conv.id);
+                    }}
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0 pr-6">
+                      <HeartPulse size={14} className={isSelected ? 'text-primary' : 'text-slate-400'} />
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onBlur={() => handleRenameSession(conv.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleRenameSession(conv.id);
+                          }}
+                          className="w-full bg-white dark:bg-[#16181D] border border-slate-300 rounded px-1 text-xs text-slate-900 dark:text-white"
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="truncate">{conv.title}</span>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    {!isEditing && (
+                      <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingConvId(conv.id);
+                            setEditingTitle(conv.title);
+                          }}
+                          className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 rounded"
+                          title="Rename"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSession(conv.id);
+                          }}
+                          className="p-1 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-950 rounded text-slate-500"
+                          title="Delete"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Sidebar Footer */}
+            <div className="p-3 border-t border-slate-100 dark:border-[#2B2F38] flex items-center justify-between text-[11px] text-slate-400 shrink-0">
+              <span>{conversations.length} Active Sessions</span>
+            </div>
+          </motion.aside>
         )}
       </AnimatePresence>
 
-      {/* Quick Actions & Input Footer */}
-      <footer className="p-4 bg-white/90 dark:bg-[#1E2128]/90 backdrop-blur-md border-t border-slate-200/70 dark:border-[#2B2F38] shrink-0 z-20">
-        <div className="max-w-3xl mx-auto space-y-3">
-          
-          {/* Quick Actions Strip */}
-          {showQuickActions && !isLoading && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
-                <span>{t('chat.quickActionsTitle') || 'Gentle suggestions for your session'}</span>
-                <button onClick={() => setShowQuickActions(false)} className="hover:text-slate-600 dark:hover:text-slate-300">✕</button>
+      {/* Main Conversation Window */}
+      <div className="flex-1 flex flex-col h-full relative overflow-hidden">
+        
+        {/* Chat Header */}
+        <header className="h-16 px-4 md:px-6 bg-white/90 dark:bg-[#1E2128]/90 backdrop-blur-md border-b border-slate-200/70 dark:border-[#2B2F38] flex items-center justify-between shrink-0 z-20">
+          <div className="flex items-center gap-3">
+            {/* Sidebar toggle */}
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#252932] rounded-xl transition-colors"
+              title="Toggle sessions list"
+            >
+              <Menu size={18} />
+            </button>
+
+            <button 
+              onClick={() => router.push('/dashboard')}
+              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#252932] rounded-xl transition-colors flex items-center gap-1 text-xs font-medium"
+              aria-label="Back to dashboard"
+            >
+              <ChevronLeft size={18} />
+              <span className="hidden sm:inline">Dashboard</span>
+            </button>
+            
+            <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 hidden sm:block" />
+            <span className="font-medium text-sm text-slate-900 dark:text-slate-100 truncate max-w-[150px]">
+              {conversations.find(c => c.id === selectedConversationId)?.title || 'AI Therapist'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Export Menu */}
+            {messages.length > 0 && (
+              <div className="flex items-center bg-slate-100 dark:bg-[#252932] p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                <button
+                  onClick={() => handleExportSession('txt')}
+                  className="px-2.5 py-1 text-[10px] text-slate-600 dark:text-slate-300 font-semibold rounded hover:bg-white dark:hover:bg-[#1E2128]"
+                  title="Export to Text"
+                >
+                  TXT
+                </button>
+                <button
+                  onClick={() => handleExportSession('json')}
+                  className="px-2.5 py-1 text-[10px] text-slate-600 dark:text-slate-300 font-semibold rounded hover:bg-white dark:hover:bg-[#1E2128]"
+                  title="Export to JSON"
+                >
+                  JSON
+                </button>
               </div>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-                {QUICK_ACTIONS.map((action) => (
-                  <button
-                    key={action.id}
-                    onClick={() => sendMessageWithPrompt(action.prompt)}
-                    className="shrink-0 bg-slate-50 dark:bg-[#16181D] border border-slate-200/80 dark:border-[#2B2F38] text-slate-700 dark:text-slate-300 px-3.5 py-1.5 rounded-xl text-xs font-normal flex items-center gap-1.5 hover:bg-[#E8F0F8] dark:hover:bg-[#5C8397]/20 hover:border-[#5C8397]/40 hover:text-[#5C8397] dark:hover:text-[#A1C2D4] transition-all"
-                  >
-                    <span>{action.icon}</span>
-                    <span>{t(action.labelKey) || action.prompt.slice(0, 24) + '...'}</span>
-                  </button>
-                ))}
+            )}
+            
+            <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-[#4A725D] dark:text-[#A8C8B5] border border-emerald-100 dark:border-[#6B907B]/40 text-[10px] font-mono rounded-full">
+              Encrypted
+            </span>
+          </div>
+        </header>
+
+        {/* Message History Container */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 bg-[#FAF9F6] dark:bg-[#16181D]">
+          {messages.length === 0 && !isTyping && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="max-w-md mx-auto text-center space-y-4 py-16"
+            >
+              <div className="w-12 h-12 bg-primary-subtle dark:bg-primary/20 text-primary dark:text-[#A1C2D4] rounded-2xl flex items-center justify-center mx-auto shadow-2xs">
+                <Sparkles size={24} strokeWidth={1.5} />
               </div>
-            </div>
+              <h3 className="text-base font-medium text-slate-900 dark:text-slate-100">
+                {t('welcome.title') || 'Your Safe Space Begins Here'}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-normal">
+                {t('emptyStates.journal') || 'No judgment, no urgency. Take a deep, quiet breath and share whatever is on your mind when you feel ready.'}
+              </p>
+            </motion.div>
           )}
 
-          {/* Mood Picker Modal */}
           <AnimatePresence>
-            {showMoodPicker && (
-              <motion.div 
-                initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                transition={{ duration: 0.16 }}
-                className="absolute bottom-full left-4 right-4 md:left-auto md:right-auto md:w-80 mb-3 bg-white dark:bg-[#1E2128] border border-slate-200/80 dark:border-[#2B2F38] p-5 rounded-2xl shadow-lg z-40"
+            {messages.map((msg) => (
+              <motion.div
+                key={msg.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className={`flex ${msg.senderType === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-medium text-slate-900 dark:text-slate-100 text-xs">
-                    {t('dashboard.moodLabel') || 'Log your current feeling'}
-                  </h3>
-                  <button onClick={() => setShowMoodPicker(false)} className="text-slate-400 hover:text-slate-600">
-                    <X size={15} />
-                  </button>
+                <div className={`flex items-start gap-3 max-w-[85%] md:max-w-[75%] ${msg.senderType === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-2xs mt-0.5 ${
+                    msg.senderType === 'user' 
+                      ? 'bg-primary/15 text-primary dark:bg-primary/25 dark:text-white' 
+                      : 'bg-primary text-white'
+                  }`}>
+                    {msg.senderType === 'user' ? <User size={16} strokeWidth={1.75} /> : <Sparkles size={16} strokeWidth={1.75} />}
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <div className={`px-4 py-3 text-xs md:text-sm leading-relaxed relative group ${
+                      msg.senderType === 'user' 
+                        ? 'chat-bubble-user font-normal' 
+                        : 'chat-bubble-ai font-normal'
+                    }`}>
+                      {msg.senderType === 'ai' && msg.text === "" ? (
+                        <div className="flex gap-1 py-1.5">
+                          <span className="w-1.5 h-1.5 bg-[#8DA9B7] rounded-full animate-bounce" />
+                          <span className="w-1.5 h-1.5 bg-[#6B907B] rounded-full animate-bounce [animation-delay:0.2s]" />
+                          <span className="w-1.5 h-1.5 bg-[#8D80A9] rounded-full animate-bounce [animation-delay:0.4s]" />
+                        </div>
+                      ) : (
+                        formatText(msg.text)
+                      )}
+
+                      {/* Hover action overlay */}
+                      {msg.text && (
+                        <div className={`absolute bottom-0 right-0 translate-y-1/2 flex items-center gap-1 bg-white dark:bg-[#1E2128] border border-slate-200/80 dark:border-[#2B2F38] p-0.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10`}>
+                          <button
+                            onClick={() => handleCopyMessage(msg.id, msg.text)}
+                            className="p-1 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                            title="Copy message"
+                          >
+                            {copiedMsgId === msg.id ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Sentiment tag underneath message */}
+                    {msg.sentiment && msg.senderType === 'ai' && (
+                      <span className="text-[9px] font-mono text-slate-400 capitalize block px-1">
+                        Detected Mood: {msg.sentiment}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex justify-between gap-1.5">
-                  {[
-                    { score: 1, icon: '😔' },
-                    { score: 2, icon: '😕' },
-                    { score: 3, icon: '😐' },
-                    { score: 4, icon: '🙂' },
-                    { score: 5, icon: '😄' },
-                  ].map((item) => (
-                    <button 
-                      key={item.score}
-                      onClick={() => logMood(item.score)}
-                      className="w-11 h-11 rounded-xl bg-slate-50 dark:bg-[#16181D] border border-slate-200/70 dark:border-[#2B2F38] flex items-center justify-center text-xl hover:bg-[#E8F0F8] hover:border-[#5C8397] transition-all hover:scale-105"
-                      title={`Score: ${item.score}/5`}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+
+          {/* Calming Thinking Indicator */}
+          {isTyping && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex justify-start"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-primary text-white flex items-center justify-center shadow-2xs">
+                  <Sparkles size={16} strokeWidth={1.75} className="animate-pulse" />
+                </div>
+                <div className="bg-white dark:bg-[#1E2128] border border-slate-200/70 dark:border-[#2B2F38] px-4 py-3 rounded-2xl rounded-tl-xs flex items-center gap-2.5 shadow-2xs">
+                  <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 bg-[#8DA9B7] rounded-full animate-pulse" />
+                    <span className="w-1.5 h-1.5 bg-[#6B907B] rounded-full animate-pulse [animation-delay:0.25s]" />
+                    <span className="w-1.5 h-1.5 bg-[#8D80A9] rounded-full animate-pulse [animation-delay:0.5s]" />
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-normal italic">
+                    {t('chat.thinking') || 'Reflecting with care...'}
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          <div ref={scrollRef} />
+        </main>
+
+        {/* Dignified Crisis Banner */}
+        <AnimatePresence>
+          {crisisDetected && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="bg-rose-50 dark:bg-rose-950/50 border-t border-rose-200 dark:border-rose-800/80 px-6 py-4"
+            >
+              <div className="max-w-3xl mx-auto flex items-start gap-3.5">
+                <div className="w-9 h-9 bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-300 rounded-xl flex items-center justify-center shrink-0">
+                  <AlertTriangle size={18} strokeWidth={1.75} />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-rose-900 dark:text-rose-100 text-sm mb-1">
+                    Immediate Support Available
+                  </h4>
+                  <p className="text-xs text-rose-700 dark:text-rose-300 leading-relaxed mb-3 font-normal">
+                    {t('chat.crisisAlert') || 'Please remember you do not have to carry heavy feelings alone. Free, confidential support is right here for you.'}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <a 
+                      href="tel:18005990019" 
+                      className="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-2xs"
                     >
-                      {item.icon}
+                      📞 KIRAN Helpline (1800-599-0019)
+                    </a>
+                    <a 
+                      href="tel:988" 
+                      className="bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-2xs"
+                    >
+                      🚨 US/Canada Crisis (988)
+                    </a>
+                    <button onClick={() => setCrisisDetected(false)} className="text-rose-400 hover:text-rose-600 p-1.5 ml-auto">
+                      <X size={16} strokeWidth={1.75} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Quick Actions & Input Footer */}
+        <footer className="p-4 bg-white/90 dark:bg-[#1E2128]/90 backdrop-blur-md border-t border-slate-200/70 dark:border-[#2B2F38] shrink-0 z-20">
+          <div className="max-w-3xl mx-auto space-y-3">
+            
+            {/* Quick Actions Strip */}
+            {showQuickActions && !isLoading && messages.length === 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold">
+                  <span>{t('chat.quickActionsTitle') || 'Suggested prompts for your session'}</span>
+                  <button onClick={() => setShowQuickActions(false)} className="hover:text-slate-600 dark:hover:text-slate-300">✕</button>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                  {quickActions.map((action) => (
+                    <button
+                      key={action.id}
+                      onClick={() => sendMessageWithPrompt(action.prompt)}
+                      className="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 dark:bg-[#1E2128] dark:hover:bg-[#252932] border border-slate-200/60 dark:border-[#2B2F38] rounded-xl text-[11px] text-slate-700 dark:text-slate-300 transition-all font-normal shadow-2xs whitespace-nowrap flex items-center gap-1.5"
+                    >
+                      <span>{action.icon}</span>
+                      <span>{t(action.labelKey) || action.prompt.slice(0, 30) + '...'}</span>
                     </button>
                   ))}
                 </div>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
 
-          {/* Chat Form */}
-          <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-[#FAF9F6] dark:bg-[#16181D] p-1.5 rounded-2xl border border-slate-200/80 dark:border-[#2B2F38] focus-within:border-[#5C8397] dark:focus-within:border-[#5C8397]/60 transition-all">
-            <button 
-              type="button"
-              onClick={() => setShowMoodPicker(!showMoodPicker)}
-              className={`p-2.5 rounded-xl transition-colors ${showMoodPicker ? 'bg-[#5C8397] text-white' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-[#252932]'}`}
-              title="Log Mood Check-in"
-              aria-label="Log mood check-in"
-            >
-              <Smile size={18} strokeWidth={1.75} />
-            </button>
-            <input 
-              type="text" 
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder={t('chat.placeholder') || 'Type your message with zero judgment...'}
-              className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-slate-800 dark:text-slate-100 py-2 px-2 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500"
-            />
-            {!showQuickActions && (
+            {/* Suggested Follow-up Questions */}
+            {preferences.aiSuggestedQuestions !== false && !isLoading && messages.length > 0 && messages[messages.length - 1].senderType === 'ai' && (
+              <div className="space-y-1.5 animate-fade-in">
+                <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold">
+                  Suggested Follow-up
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                  {getSuggestedFollowUpQuestions().map((q, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => sendMessageWithPrompt(q)}
+                      className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-[#1E2128]/80 dark:hover:bg-[#252932] border border-slate-200/60 dark:border-[#2B2F38] rounded-xl text-[11px] text-slate-700 dark:text-slate-350 transition-all whitespace-nowrap shadow-2xs hover:scale-[1.01]"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Input Bar */}
+            <form onSubmit={handleSendMessage} className="relative flex items-center gap-2">
+              {/* Extra Controls */}
+              {isLoading ? (
+                <button
+                  type="button"
+                  onClick={handleStopGeneration}
+                  className="p-3.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 border border-rose-200 dark:border-rose-900 rounded-xl hover:bg-rose-100 transition-colors"
+                  title="Stop generating"
+                >
+                  <StopCircle size={16} />
+                </button>
+              ) : (
+                messages.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleRetryResponse}
+                    className="p-3.5 bg-[#FAF9F6] dark:bg-[#16181D] border border-slate-200 dark:border-[#2B2F38] text-slate-500 dark:text-slate-400 rounded-xl hover:bg-slate-100 transition-colors"
+                    title="Retry AI reply"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                )
+              )}
+
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="Share whatever is on your mind..."
+                className="w-full bg-[#FAF9F6] dark:bg-[#16181D] border border-slate-200/80 dark:border-[#2B2F38] rounded-2xl pl-4 pr-12 py-3 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary transition-all"
+                disabled={isLoading || !selectedConversationId}
+              />
+              
               <button
-                type="button"
-                onClick={() => setShowQuickActions(true)}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-xl transition-colors text-xs"
-                title="Show quick suggestions"
-                aria-label="Show suggestions"
+                type="submit"
+                disabled={!inputText.trim() || isLoading || !selectedConversationId}
+                className="absolute right-2 p-2 bg-primary hover:bg-primary-hover disabled:bg-slate-100 disabled:dark:bg-[#1E2128] text-white disabled:text-slate-400 rounded-xl transition-all shadow-2xs flex items-center justify-center"
+                aria-label="Send message"
               >
-                <Sparkles size={16} strokeWidth={1.75} />
+                {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
               </button>
-            )}
-            <button 
-              type="submit"
-              disabled={!inputText.trim() || isLoading}
-              className="btn-primary p-2.5 rounded-xl disabled:opacity-40 disabled:scale-100 shadow-2xs min-h-[38px] min-w-[38px]"
-              aria-label="Send message"
-            >
-              <Send size={16} strokeWidth={1.75} />
-            </button>
-          </form>
-
-          <div className="text-center">
-            <p className="text-[10px] text-slate-400 dark:text-slate-500">
-              AI companion for emotional reflection & grounding. Not clinical or medical advice.
-            </p>
+            </form>
           </div>
-        </div>
-      </footer>
+        </footer>
+      </div>
     </div>
   );
 }
