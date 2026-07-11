@@ -155,7 +155,7 @@ export default function AssessmentsPage() {
 
   return (
     <AppSidebar>
-      <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-5xl mx-auto bg-[#FAF9F6] dark:bg-[#16181D] min-h-screen transition-colors duration-300 select-none">
+      <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-5xl mx-auto bg-[#FAF9F6] dark:bg-[#16181D] min-h-screen transition-colors duration-300">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/60 dark:border-[#2B2F38]">
           <div>
             <div className="flex items-center gap-2 mb-1">

@@ -108,7 +108,7 @@ const Navbar = () => {
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-[#FAF9F6] dark:bg-[#16181D] text-slate-800 dark:text-slate-100 font-sans flex flex-col relative transition-colors duration-300 select-none">
+    <main className="min-h-screen bg-[#FAF9F6] dark:bg-[#16181D] text-slate-800 dark:text-slate-100 font-sans flex flex-col relative transition-colors duration-300">
       <Navbar />
 
       {/* Hero Section */}

@@ -19,7 +19,7 @@ export default function MeditationStudioPage() {
 
   return (
     <AppSidebar>
-      <PageTransition className="p-4 sm:p-6 md:p-8 space-y-6 max-w-4xl mx-auto bg-[#FAF9F6] dark:bg-[#16181D] min-h-screen transition-colors duration-300 select-none">
+      <PageTransition className="p-4 sm:p-6 md:p-8 space-y-6 max-w-4xl mx-auto bg-[#FAF9F6] dark:bg-[#16181D] min-h-screen transition-colors duration-300">
         {/* Sanctuary Studio Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/60 dark:border-[#2B2F38]">
           <div className="flex items-center gap-3">

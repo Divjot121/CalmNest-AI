@@ -193,7 +193,7 @@ export default function VolunteerDashboard() {
   const filteredChats = filter === 'crisis' ? chats.filter(c => c.crisisDetected) : chats;
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] dark:bg-[#16181D] flex font-sans select-none">
+    <div className="min-h-screen bg-[#FAF9F6] dark:bg-[#16181D] flex font-sans">
       
       {/* Sidebar Navigation */}
       <aside className="w-64 bg-slate-900 text-white p-6 hidden lg:flex flex-col border-r border-slate-800 shrink-0">

@@ -518,7 +518,7 @@ export default function ChatInterface() {
   );
 
   return (
-    <div className="flex h-screen bg-[#FAF9F6] dark:bg-[#16181D] text-slate-800 dark:text-slate-100 font-sans select-none overflow-hidden transition-colors duration-300">
+    <div className="flex h-screen bg-[#FAF9F6] dark:bg-[#16181D] text-slate-800 dark:text-slate-100 font-sans overflow-hidden transition-colors duration-300">
       
       {/* Side Panel for Conversations */}
       <AnimatePresence>
