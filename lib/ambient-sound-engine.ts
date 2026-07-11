@@ -59,6 +59,7 @@ export class AmbientSoundEngine {
     }
   > = new Map();
   private masterVolume: number = 0.5;
+  private analyser: AnalyserNode | null = null;
 
   static getInstance(): AmbientSoundEngine {
     if (!AmbientSoundEngine.instance) {
@@ -75,11 +76,22 @@ export class AmbientSoundEngine {
         this.ctx = new AudioContextClass();
         this.masterGain = this.ctx.createGain();
         this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
-        this.masterGain.connect(this.ctx.destination);
+        
+        // Setup analyser for premium audio visualizer waveform
+        this.analyser = this.ctx.createAnalyser();
+        this.analyser.fftSize = 64; 
+        
+        this.masterGain.connect(this.analyser);
+        this.analyser.connect(this.ctx.destination);
       } catch (e) {
         console.warn("Failed to initialize AudioContext:", e);
       }
     }
+  }
+
+  getAnalyser(): AnalyserNode | null {
+    this.init();
+    return this.analyser;
   }
 
   getContext(): AudioContext | null {

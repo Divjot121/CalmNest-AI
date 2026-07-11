@@ -16,6 +16,7 @@ import {
   Compass
 } from 'lucide-react';
 import Link from 'next/link';
+import SEO from '@/components/SEO';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -107,8 +108,27 @@ const Navbar = () => {
 };
 
 export default function LandingPage() {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "CalmNest Wellness Sanctuary",
+    "description": "An empathetic, private, and anonymous space for mental wellness, journaling, and breathing exercises.",
+    "applicationCategory": "HealthApplication",
+    "operatingSystem": "All",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#FAF9F6] dark:bg-[#16181D] text-slate-800 dark:text-slate-100 font-sans flex flex-col relative transition-colors duration-300">
+      <SEO
+        title="CalmNest | A Safe Place for Every Mind"
+        description="24/7 AI-powered emotional support, anonymous conversations, and compassionate guidance."
+        schema={schema}
+      />
       <Navbar />
 
       {/* Hero Section */}

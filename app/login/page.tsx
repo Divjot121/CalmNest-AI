@@ -15,6 +15,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
 
   useEffect(() => {
     // If user is already logged in as a registered user, redirect to dashboard
@@ -88,10 +90,14 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => setEmailTouched(true)}
               placeholder="you@example.com"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/70 dark:border-[#2B2F38] bg-[#FAF9F6] dark:bg-[#16181D] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+              className="input-minimal"
               required
             />
+            {emailTouched && email && !email.includes('@') && (
+              <span className="text-[10px] text-rose-500 mt-1 block">Please enter a valid email address containing @</span>
+            )}
           </div>
 
           <div>
@@ -105,16 +111,20 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => setPasswordTouched(true)}
               placeholder="••••••••"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/70 dark:border-[#2B2F38] bg-[#FAF9F6] dark:bg-[#16181D] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+              className="input-minimal"
               required
             />
+            {passwordTouched && !password && (
+              <span className="text-[10px] text-rose-500 mt-1 block">Password is required</span>
+            )}
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-medium flex items-center justify-center gap-2 transition-all shadow-2xs disabled:opacity-50"
+            className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-medium flex items-center justify-center gap-2 transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
           >
             {loading && <Loader2 size={13} className="animate-spin" />}
             <span>Sign In</span>

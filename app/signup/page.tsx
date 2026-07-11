@@ -18,6 +18,10 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [strength, setStrength] = useState({ score: 0, label: 'Weak', color: 'bg-rose-500' });
+  const [nameTouched, setNameTouched] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
+  const [confirmTouched, setConfirmTouched] = useState(false);
 
   useEffect(() => {
     if (user && !user.isAnonymous) {
@@ -131,10 +135,14 @@ export default function SignupPage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onBlur={() => setNameTouched(true)}
               placeholder="e.g. Divjot"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-[#2B2F38] bg-[#FAF9F6] dark:bg-[#16181D] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+              className="input-minimal"
               required
             />
+            {nameTouched && !name.trim() && (
+              <span className="text-[10px] text-rose-500 mt-1 block">Name is required</span>
+            )}
           </div>
 
           <div>
@@ -143,10 +151,14 @@ export default function SignupPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => setEmailTouched(true)}
               placeholder="you@example.com"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-[#2B2F38] bg-[#FAF9F6] dark:bg-[#16181D] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+              className="input-minimal"
               required
             />
+            {emailTouched && email && !email.includes('@') && (
+              <span className="text-[10px] text-rose-500 mt-1 block">Please enter a valid email address containing @</span>
+            )}
           </div>
 
           <div>
@@ -155,10 +167,14 @@ export default function SignupPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => setPasswordTouched(true)}
               placeholder="Min. 8 characters"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-[#2B2F38] bg-[#FAF9F6] dark:bg-[#16181D] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+              className="input-minimal"
               required
             />
+            {passwordTouched && password && password.length < 8 && (
+              <span className="text-[10px] text-rose-500 mt-1 block">Password must be at least 8 characters long</span>
+            )}
             {/* Password Strength Indicator */}
             {password && (
               <div className="mt-2 space-y-1">
@@ -179,16 +195,20 @@ export default function SignupPage() {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              onBlur={() => setConfirmTouched(true)}
               placeholder="Repeat your password"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-[#2B2F38] bg-[#FAF9F6] dark:bg-[#16181D] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+              className="input-minimal"
               required
             />
+            {confirmTouched && confirmPassword && password !== confirmPassword && (
+              <span className="text-[10px] text-rose-500 mt-1 block">Passwords do not match</span>
+            )}
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-medium flex items-center justify-center gap-2 transition-all shadow-2xs disabled:opacity-50"
+            className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-medium flex items-center justify-center gap-2 transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
           >
             {loading && <Loader2 size={13} className="animate-spin" />}
             <span>Sign Up & Sync Data</span>

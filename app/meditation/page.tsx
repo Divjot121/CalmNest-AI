@@ -9,6 +9,7 @@ import { useSanctuaryTranslation } from '@/lib/i18n/useSanctuaryTranslation';
 import { ChevronLeft, Compass } from 'lucide-react';
 import Link from 'next/link';
 import { useAmbientSoundStore } from '@/store/useAmbientSoundStore';
+import SEO from '@/components/SEO';
 
 export default function MeditationStudioPage() {
   const { t } = useSanctuaryTranslation();
@@ -17,8 +18,32 @@ export default function MeditationStudioPage() {
     useAmbientSoundStore.getState().triggerRecommendation('meditation');
   }, []);
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://calmnest.vercel.app"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Meditation Studio",
+        "item": "https://calmnest.vercel.app/meditation"
+      }
+    ]
+  };
+
   return (
     <AppSidebar>
+      <SEO
+        title="Breathing & Soundscape Studio | CalmNest"
+        description="Relax with interactive box breathing, 4-7-8 deep breathing exercises, and high-fidelity custom ambient sound mixes."
+        schema={breadcrumbSchema}
+      />
       <PageTransition className="p-4 sm:p-6 md:p-8 space-y-6 max-w-4xl mx-auto bg-[#FAF9F6] dark:bg-[#16181D] min-h-screen transition-colors duration-300">
         {/* Sanctuary Studio Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/60 dark:border-[#2B2F38]">

@@ -37,6 +37,21 @@
   p, span, label, input, textarea {
     @apply font-normal;
   }
+
+  /* Keyboard Focus Rings for WCAG AA Accessibility */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [role="button"]:focus-visible {
+    @apply ring-2 ring-primary ring-offset-2 dark:ring-primary-light dark:ring-offset-[#16181D] outline-none;
+  }
+}
+
+/* Premium Focus Ring Utility class */
+.focus-ring {
+  @apply focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none dark:focus-visible:ring-primary-light transition-shadow;
 }
 
 /* Premium Minimalist Card Utilities (Inspired by Apple HIG / Linear / Notion) */

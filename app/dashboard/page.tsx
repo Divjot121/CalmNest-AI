@@ -36,6 +36,7 @@ import { AmbiencePlayer } from '@/components/AmbiencePlayer';
 import { triggerGentleSanctuaryCelebration } from '@/components/SanctuaryConfetti';
 import { getWellnessSessions } from '@/lib/db-service';
 import { useAmbientSoundStore } from '@/store/useAmbientSoundStore';
+import SEO from '@/components/SEO';
 
 const moodOptions = [
   { score: 1, label: 'Struggling', icon: '😔', color: 'bg-rose-50/80 border-rose-200/80 text-rose-700 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300' },
@@ -138,8 +139,32 @@ export default function DashboardPage() {
       mood: log.moodScore,
     }));
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://calmnest.vercel.app"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Dashboard",
+        "item": "https://calmnest.vercel.app/dashboard"
+      }
+    ]
+  };
+
   return (
     <AppSidebar>
+      <SEO
+        title="Sanctuary Workspace | CalmNest"
+        description="Check in on your emotional status, monitor mindful habits, and personalize your settings in your private mental wellness sanctuary."
+        schema={breadcrumbSchema}
+      />
       <div className="p-4 sm:p-6 md:p-8 space-y-8 max-w-6xl mx-auto bg-[#FAF9F6] dark:bg-[#16181D] min-h-screen transition-colors duration-300">
         
         {/* 1. Daily Greeting & Workspace Header */}
