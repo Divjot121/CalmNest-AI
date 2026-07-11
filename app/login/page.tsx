@@ -143,7 +143,7 @@ export default function LoginPage() {
 
         <div className="text-center pt-2">
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/signup" className="text-primary dark:text-[#A1C2D4] hover:underline font-semibold">
               Create Permanent Account
             </Link>

@@ -57,8 +57,10 @@ export default function HabitsTrackerPage() {
 
   useEffect(() => {
     if (!authLoading && user?.id) {
-      fetchHabits();
-      loadCompletions(user.id);
+      setTimeout(() => {
+        fetchHabits();
+        loadCompletions(user.id);
+      }, 0);
     }
   }, [authLoading, user?.id, fetchHabits]);
 

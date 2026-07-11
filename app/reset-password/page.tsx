@@ -44,30 +44,33 @@ export default function ResetPasswordPage() {
 
   // Dynamic Password Strength Meter
   useEffect(() => {
-    if (!password) {
-      setStrength({ score: 0, label: 'Too Short', color: 'bg-slate-300' });
-      return;
-    }
-    let score = 0;
-    if (password.length >= 8) score += 1;
-    if (/[A-Z]/.test(password)) score += 1;
-    if (/[0-9]/.test(password)) score += 1;
-    if (/[^A-Za-z0-9]/.test(password)) score += 1;
+    const checkStrength = () => {
+      if (!password) {
+        setStrength({ score: 0, label: 'Too Short', color: 'bg-slate-300' });
+        return;
+      }
+      let score = 0;
+      if (password.length >= 8) score += 1;
+      if (/[A-Z]/.test(password)) score += 1;
+      if (/[0-9]/.test(password)) score += 1;
+      if (/[^A-Za-z0-9]/.test(password)) score += 1;
 
-    let label = 'Weak';
-    let color = 'bg-rose-500';
-    if (score === 2) {
-      label = 'Fair';
-      color = 'bg-amber-500';
-    } else if (score === 3) {
-      label = 'Good';
-      color = 'bg-blue-500';
-    } else if (score === 4) {
-      label = 'Strong';
-      color = 'bg-emerald-500';
-    }
+      let label = 'Weak';
+      let color = 'bg-rose-500';
+      if (score === 2) {
+        label = 'Fair';
+        color = 'bg-amber-500';
+      } else if (score === 3) {
+        label = 'Good';
+        color = 'bg-blue-500';
+      } else if (score === 4) {
+        label = 'Strong';
+        color = 'bg-emerald-500';
+      }
 
-    setStrength({ score, label, color });
+      setStrength({ score, label, color });
+    };
+    setTimeout(checkStrength, 0);
   }, [password]);
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -39,7 +39,9 @@ export default function NotificationDropdown() {
 
   useEffect(() => {
     if (user?.id) {
-      fetchNotifications();
+      setTimeout(() => {
+        fetchNotifications();
+      }, 0);
 
       const channelName = `user_notifications_${user.id}`;
 

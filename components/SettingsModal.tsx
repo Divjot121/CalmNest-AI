@@ -83,9 +83,11 @@ export default function SettingsModal() {
   // Fetch initial profile values when settings open
   useEffect(() => {
     if (user && isOpen) {
-      setProfileName(user.name || '');
-      setProfileBio((user as any).bio || '');
-      setProfileAvatarUrl(user.avatarUrl || (user as any).avatar_url || '');
+      setTimeout(() => {
+        setProfileName(user.name || '');
+        setProfileBio((user as any).bio || '');
+        setProfileAvatarUrl(user.avatarUrl || (user as any).avatar_url || '');
+      }, 0);
     }
   }, [user, isOpen]);
 

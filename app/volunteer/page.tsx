@@ -93,7 +93,9 @@ export default function VolunteerDashboard() {
   };
 
   useEffect(() => {
-    fetchConversations();
+    setTimeout(() => {
+      fetchConversations();
+    }, 0);
 
     const channelName = 'volunteer_conversations_realtime';
 
@@ -120,11 +122,13 @@ export default function VolunteerDashboard() {
   // Sync messages when selectedChatId changes
   useEffect(() => {
     if (!selectedChatId) {
-      setMessages([]);
+      setTimeout(() => setMessages([]), 0);
       return;
     }
 
-    fetchMessages(selectedChatId);
+    setTimeout(() => {
+      fetchMessages(selectedChatId);
+    }, 0);
 
     const channelName = `volunteer_messages_${selectedChatId}`;
 

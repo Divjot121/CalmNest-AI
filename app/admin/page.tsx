@@ -42,7 +42,9 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    fetchStats();
+    setTimeout(() => {
+      fetchStats();
+    }, 0);
   }, []);
 
   const mockVolunteers = [

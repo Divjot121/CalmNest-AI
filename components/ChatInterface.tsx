@@ -58,6 +58,8 @@ const quickActions = [
 ];
 
 export default function ChatInterface() {
+  const accumulatedTextRef = useRef("");
+  const sentimentValueRef = useRef("neutral");
   const router = useRouter();
   const { t, currentLanguage } = useSanctuaryTranslation();
   const { user } = useAuthStore();
@@ -135,13 +137,15 @@ export default function ChatInterface() {
 
   useEffect(() => {
     const userId = user?.id || getOrCreateAnonymousUUID();
-    loadConversations(userId);
+    setTimeout(() => {
+      loadConversations(userId);
+    }, 0);
   }, [user]);
 
   // Load messages for selected conversation
   useEffect(() => {
     if (!selectedConversationId) {
-      setMessages([]);
+      setTimeout(() => setMessages([]), 0);
       return;
     }
 
@@ -368,8 +372,8 @@ export default function ChatInterface() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
-      let accumulatedText = "";
-      let sentimentValue = "neutral";
+      accumulatedTextRef.current = "";
+      sentimentValueRef.current = "neutral";
 
       setIsTyping(false);
 
@@ -387,7 +391,7 @@ export default function ChatInterface() {
                 const parsed = JSON.parse(jsonStr);
                 
                 if (parsed.error) {
-                  accumulatedText = parsed.error;
+                  accumulatedTextRef.current = parsed.error;
                   break;
                 }
 
@@ -397,8 +401,8 @@ export default function ChatInterface() {
                   }
                   done = true;
                 } else if (parsed.text) {
-                  accumulatedText += parsed.text;
-                  sentimentValue = parsed.sentiment || sentimentValue;
+                  accumulatedTextRef.current += parsed.text;
+                  sentimentValueRef.current = parsed.sentiment || sentimentValueRef.current;
 
                   // Update UI message only if streaming is enabled
                   if (preferences.aiStreamingEnabled !== false) {
@@ -406,7 +410,7 @@ export default function ChatInterface() {
                       const list = [...prev];
                       const idx = list.findIndex(m => m.id === aiMsgId);
                       if (idx !== -1) {
-                        list[idx] = { ...list[idx], text: accumulatedText, sentiment: sentimentValue };
+                        list[idx] = { ...list[idx], text: accumulatedTextRef.current, sentiment: sentimentValueRef.current };
                       }
                       try {
                         window.localStorage.setItem(`calmnest_messages_${selectedConversationId}`, JSON.stringify(list));
@@ -427,7 +431,7 @@ export default function ChatInterface() {
           const list = [...prev];
           const idx = list.findIndex(m => m.id === aiMsgId);
           if (idx !== -1) {
-            list[idx] = { ...list[idx], text: accumulatedText, sentiment: sentimentValue };
+            list[idx] = { ...list[idx], text: accumulatedTextRef.current, sentiment: sentimentValueRef.current };
           }
           return list;
         });
@@ -437,8 +441,8 @@ export default function ChatInterface() {
       const aiPayload = {
         conversation_id: selectedConversationId,
         role: 'assistant',
-        content: accumulatedText,
-        sentiment: sentimentValue,
+        content: accumulatedTextRef.current,
+        sentiment: sentimentValueRef.current,
         created_at: new Date().toISOString()
       };
       try {

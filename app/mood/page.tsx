@@ -50,7 +50,11 @@ export default function MoodTrackerPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const val = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim();
-      if (val) setPrimaryColor(val);
+      if (val) {
+        setTimeout(() => {
+          setPrimaryColor(val);
+        }, 0);
+      }
     }
   }, [preferences.accentColor]);
 
@@ -510,7 +514,7 @@ export default function MoodTrackerPage() {
                   {indicator?.details && (
                     <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] p-2 rounded-lg w-40 z-25 leading-normal shadow-md mb-2">
                       <p className="font-bold">{indicator.label}</p>
-                      {indicator.details.notes && <p className="italic text-slate-300 mt-0.5">"{indicator.details.notes}"</p>}
+                      {indicator.details.notes && <p className="italic text-slate-300 mt-0.5">&quot;{indicator.details.notes}&quot;</p>}
                       <p className="text-[9px] text-slate-400 mt-1 font-mono">Tags: {indicator.details.tags?.join(', ') || 'none'}</p>
                     </div>
                   )}

@@ -28,9 +28,11 @@ export default function GlobalSearchModal({ isOpen, onClose }: { isOpen: boolean
   // Focus input when modal opens
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-      setQuery('');
-      setResults([]);
+      setTimeout(() => {
+        inputRef.current?.focus();
+        setQuery('');
+        setResults([]);
+      }, 100);
     }
   }, [isOpen]);
 

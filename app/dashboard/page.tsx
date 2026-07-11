@@ -56,11 +56,15 @@ export default function DashboardPage() {
   const [primaryColor, setPrimaryColor] = useState('#5C8397');
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const val = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim();
-      if (val) setPrimaryColor(val);
-    }
-  }, [preferences.accentColor]);
+      if (typeof window !== 'undefined') {
+        const val = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim();
+        if (val) {
+          setTimeout(() => {
+            setPrimaryColor(val);
+          }, 0);
+        }
+      }
+    }, [preferences.accentColor]);
 
   const [isOnboarded, setIsOnboarded] = useState(true);
   const [selectedMoodScore, setSelectedMoodScore] = useState<number | null>(null);
